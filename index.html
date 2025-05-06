@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Генератор текстурного шума</title>
+  <style>
+    :root {
+      --bg-color: #222;
+      --card-bg: #333;
+      --text-color: #ffffff;
+      --accent-color: #1465ac;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --border-radius: 12px;
+    }
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'system-ui', sans-serif;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 100vh;
+      box-sizing: border-box;
+    }
+    canvas {
+      border: 1px solid #555;
+      border-radius: var(--border-radius);
+      max-height: calc(100vh - 320px);
+      width: 100%;
+      object-fit: contain;
+      background: #000;
+      box-shadow: var(--shadow);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      padding: 12px;
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+    }
+    label {
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.9;
+    }
+    input[type="number"], select, input[type="checkbox"], input[type="file"] {
+      background: #666;
+      border: none;
+      border-radius: 8px;
+      padding: 8px;
+      color: var(--text-color);
+      font-size: 14px;
+      transition: background 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    input[type="number"]:hover, select:hover, input[type="file"]:hover {
+      background: #4a545c;
+    }
+    input[type="file"] {
+      padding: 6px;
+    }
+    button {
+      background: var(--accent-color);
+      border: none;
+      border-radius: 7px;
+      padding: 10px 16px;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s;
+      box-shadow: var(--shadow);
+    }
+    button:hover {
+      background: #082f51;
+      transform: scale(1.04);
+    }
+    button:active {
+      transform: scale(0.95);
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 12px;
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+    }
+    #progress, #metrics, #recommendations {
+      font-size: 14px;
+      padding: 12px;
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      width: 100%;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    #progress {
+      display: none;
+    }
+    #metrics, #recommendations {
+      display: block;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+    .tooltip {
+      visibility: hidden;
+      background: #000;
+      color: white;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .control-group:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+    @media (max-width: 600px) {
+      .controls {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="controls">
+      <div class="control-group">
+        <label>Ширина</label>
+        <input type="number" id="width" value="512" min="1" />
+        <span class="tooltip">Ширина текстуры в пикселях</span>
+      </div>
+      <div class="control-group">
+        <label>Высота</label>
+        <input type="number" id="height" value="1024" min="1" />
+        <span class="tooltip">Высота текстуры в пикселях</span>
+      </div>
+      <div class="control-group">
+        <label>Тип шума 1</label>
+        <select id="noiseType1">
+          <option value="random">Случайный</option>
+          <option value="perlin">Перлиновый</option>
+          <option value="simplex">Симплекса</option>
+          <option value="saltPepper">Соль-перец</option>
+          <option value="gaussian">Гауссов</option>
+        </select>
+        <span class="tooltip">Первый тип шума</span>
+      </div>
+      <div class="control-group">
+        <label>Вес шума 1</label>
+        <input type="number" id="weight1" value="0.5" min="0" max="1" step="0.01" />
+        <span class="tooltip">Вклад первого шума (0–1)</span>
+      </div>
+      <div class="control-group">
+        <label>Тип шума 2</label>
+        <select id="noiseType2">
+          <option value="none">Нет</option>
+          <option value="random">Случайный</option>
+          <option value="perlin">Перлиновый</option>
+          <option value="simplex">Симплекса</option>
+          <option value="saltPepper">Соль-перец</option>
+          <option value="gaussian">Гауссов</option>
+        </select>
+        <span class="tooltip">Второй тип шума</span>
+      </div>
+      <div class="control-group">
+        <label>Вес шума 2</label>
+        <input type="number" id="weight2" value="0.5" min="0" max="1" step="0.01" />
+        <span class="tooltip">Вклад второго шума (0–1)</span>
+      </div>
+      <div class="control-group">
+        <label>Интенсивность</label>
+        <input type="number" id="noiseLevel" value="0.7" min="0" max="1" step="0.01" />
+        <span class="tooltip">Общая интенсивность шума</span>
+      </div>
+      <div class="control-group">
+        <label>Масштаб шума</label>
+        <input type="number" id="noiseScale" value="10" min="1" max="100" step="1" />
+        <span class="tooltip">Размер деталей шума</span>
+      </div>
+      <div class="control-group">
+        <label>Размытие</label>
+        <input type="number" id="blurRadius" value="0" min="0" max="10" step="0.1" />
+        <span class="tooltip">Радиус гауссова размытия</span>
+      </div>
+      <div class="control-group">
+        <label>Медианный фильтр</label>
+        <input type="number" id="medianRadius" value="0" min="0" max="5" step="1" />
+        <span class="tooltip">Радиус медианного фильтра</span>
+      </div>
+      <div class="control-group">
+        <label>Пятен</label>
+        <input type="number" id="spots" value="10" min="0" />
+        <span class="tooltip">Количество пятен для маски</span>
+      </div>
+      <div class="control-group">
+        <label>Цветной шум</label>
+        <input type="checkbox" id="colorNoise" />
+        <span class="tooltip">Включить RGB-шум</span>
+      </div>
+      <div class="control-group">
+        <label>Альфа-канал</label>
+        <input type="number" id="alphaLevel" value="1" min="0" max="1" step="0.01" />
+        <span class="tooltip">Прозрачность текстуры (0–1)</span>
+      </div>
+      <div class="control-group">
+        <label>Эталонное изобр.</label>
+        <input type="file" id="referenceImage" accept="image/*" />
+        <span class="tooltip">Загрузите изображение для расчета уникальности</span>
+      </div>
+    </div>
+
+    <canvas id="noiseCanvas"></canvas>
+
+    <div class="actions">
+      <button onclick="generateNoise()">🎲 Сгенерировать</button>
+      <button onclick="download()">💾 Скачать</button>
+      <button onclick="saveCopies()">📁 Скачать <span id="copiesDisplay">5</span> копий:</button>
+      <input type="number" id="copies" value="5" min="1" style="width: 60px;" />
+      <button onclick="saveSettings()">💾 Настройки</button>
+    </div>
+    <div id="progress">Обработка: 0%</div>
+    <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -</div>
+    <div id="recommendations">Рекомендации: -</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('noiseCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const progress = document.getElementById('progress');
+    const metricsDiv = document.getElementById('metrics');
+    const recommendationsDiv = document.getElementById('recommendations');
+    const copiesInput = document.getElementById('copies');
+    const copiesDisplay = document.getElementById('copiesDisplay');
+    let referenceImageData = null;
+
+    function resizeCanvas() {
+      const width = +document.getElementById('width').value;
+      const height = +document.getElementById('height').value;
+      canvas.width = width;
+      canvas.height = height;
+      //canvas.style.maxWidth = `${Math.min(width, window.innerWidth - 32)}px`;
+      canvas.style.maxHeight = `calc(100vh - 320px)`;
+    }
+
+    function gaussianBlur(imgData, width, height, radius) {
+      if (radius <= 0) return imgData;
+      const kernelSize = Math.ceil(radius) * 2 + 1;
+      const kernel = [];
+      let sum = 0;
+      const sigma = radius / 3;
+
+      for (let i = -Math.floor(kernelSize / 2); i <= Math.floor(kernelSize / 2); i++) {
+        const value = Math.exp(-(i * i) / (2 * sigma * sigma));
+        kernel.push(value);
+        sum += value;
+      }
+      for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
+
+      const tempData = new Uint8ClampedArray(imgData.data);
+      const outputData = new Uint8ClampedArray(imgData.data);
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let r = 0, g = 0, b = 0, a = 0;
+          for (let i = 0; i < kernel.length; i++) {
+            const offsetX = x + i - Math.floor(kernelSize / 2);
+            if (offsetX >= 0 && offsetX < width) {
+              const index = (y * width + offsetX) * 4;
+              const weight = kernel[i];
+              r += tempData[index] * weight;
+              g += tempData[index + 1] * weight;
+              b += tempData[index + 2] * weight;
+              a += tempData[index + 3] * weight;
+            }
+          }
+          const index = (y * width + x) * 4;
+          outputData[index] = r;
+          outputData[index + 1] = g;
+          outputData[index + 2] = b;
+          outputData[index + 3] = a;
+        }
+      }
+
+      for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+          let r = 0, g = 0, b = 0, a = 0;
+          for (let i = 0; i < kernel.length; i++) {
+            const offsetY = y + i - Math.floor(kernelSize / 2);
+            if (offsetY >= 0 && offsetY < height) {
+              const index = (offsetY * width + x) * 4;
+              const weight = kernel[i];
+              r += outputData[index] * weight;
+              g += outputData[index + 1] * weight;
+              b += outputData[index + 2] * weight;
+              a += outputData[index + 3] * weight;
+            }
+          }
+          const index = (y * width + x) * 4;
+          imgData.data[index] = r;
+          imgData.data[index + 1] = g;
+          imgData.data[index + 2] = b;
+          imgData.data[index + 3] = a;
+        }
+      }
+      return imgData;
+    }
+
+    function medianFilter(imgData, width, height, radius) {
+      if (radius <= 0) return imgData;
+      const kernelSize = radius * 2 + 1;
+      const outputData = new Uint8ClampedArray(imgData.data);
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const rValues = [], gValues = [], bValues = [], aValues = [];
+          for (let ky = -radius; ky <= radius; ky++) {
+            for (let kx = -radius; kx <= radius; kx++) {
+              const nx = x + kx;
+              const ny = y + ky;
+              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                const index = (ny * width + nx) * 4;
+                rValues.push(imgData.data[index]);
+                gValues.push(imgData.data[index + 1]);
+                bValues.push(imgData.data[index + 2]);
+                aValues.push(imgData.data[index + 3]);
+              }
+            }
+          }
+          rValues.sort((a, b) => a - b);
+          gValues.sort((a, b) => a - b);
+          bValues.sort((a, b) => a - b);
+          aValues.sort((a, b) => a - b);
+          const index = (y * width + x) * 4;
+          outputData[index] = rValues[Math.floor(rValues.length / 2)];
+          outputData[index + 1] = gValues[Math.floor(gValues.length / 2)];
+          outputData[index + 2] = bValues[Math.floor(bValues.length / 2)];
+          outputData[index + 3] = aValues[Math.floor(aValues.length / 2)];
+        }
+      }
+      imgData.data.set(outputData);
+      return imgData;
+    }
+
+    function simplexNoise(width, height, scale, intensity, colorNoise) {
+      const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+      const perm = new Uint8Array(512);
+      for (let i = 0; i < 512; i++) perm[i] = Math.floor(Math.random() * 256);
+
+      function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+      function lerp(t, a, b) { return a + t * (b - a); }
+      function grad(hash, x, y) {
+        const h = hash & 15;
+        const u = h < 8 ? x : y;
+        const v = h < 4 ? y : h === 12 || h === 14 ? x : 0;
+        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+      }
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+            const xi = Math.floor(x / scale);
+            const yi = Math.floor(y / scale);
+            const xf = (x / scale) - xi;
+            const yf = (y / scale) - yi;
+            const u = fade(xf);
+            const v = fade(yf);
+
+            const aa = perm[(perm[xi + c] + yi) & 255];
+            const ab = perm[(perm[xi + c] + yi + 1) & 255];
+            const ba = perm[(perm[xi + 1 + c] + yi) & 255];
+            const bb = perm[(perm[xi + 1 + c] + yi + 1) & 255];
+
+            const x1 = lerp(u, grad(aa, xf, yf), grad(ba, xf - 1, yf));
+            const x2 = lerp(u, grad(ab, xf, yf - 1), grad(bb, xf - 1, yf - 1));
+            const value = lerp(v, x1, x2);
+
+            noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
+          }
+        }
+      }
+      return noise;
+    }
+
+    function perlinNoise(width, height, scale, intensity, colorNoise) {
+      const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+            let value = 0;
+            let amplitude = 1;
+            let frequency = 1 / scale;
+            for (let i = 0; i < 8; i++) {
+              const sampleX = x * frequency;
+              const sampleY = y * frequency;
+              value += amplitude * (Math.random() - 0.5) * 2;
+              amplitude *= 0.5;
+              frequency *= 2;
+            }
+            noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+          }
+        }
+      }
+      return noise;
+    }
+
+    function calculateMetrics(imgData1, imgData2, width, height) {
+      let mse = 0, mae = 0, ssim = 0;
+      let mean1 = 0, mean2 = 0, var1 = 0, var2 = 0, cov = 0;
+      const c1 = 0.01 * 255 * 255, c2 = 0.03 * 255 * 255;
+
+      for (let i = 0; i < width * height * 4; i += 4) {
+        const v1 = (imgData1.data[i] + imgData1.data[i + 1] + imgData1.data[i + 2]) / 3;
+        const v2 = (imgData2.data[i] + imgData2.data[i + 1] + imgData2.data[i + 2]) / 3;
+        const diff = v1 - v2;
+        mse += diff * diff;
+        mae += Math.abs(diff);
+        mean1 += v1;
+        mean2 += v2;
+      }
+
+      mse /= (width * height);
+      mae /= (width * height);
+      mean1 /= (width * height);
+      mean2 /= (width * height);
+
+      for (let i = 0; i < width * height * 4; i += 4) {
+        const v1 = (imgData1.data[i] + imgData1.data[i + 1] + imgData1.data[i + 2]) / 3;
+        const v2 = (imgData2.data[i] + imgData2.data[i + 1] + imgData2.data[i + 2]) / 3;
+        var1 += (v1 - mean1) ** 2;
+        var2 += (v2 - mean2) ** 2;
+        cov += (v1 - mean1) * (v2 - mean2);
+      }
+
+      var1 /= (width * height);
+      var2 /= (width * height);
+      cov /= (width * height);
+
+      ssim = ((2 * mean1 * mean2 + c1) * (2 * cov + c2)) / ((mean1 ** 2 + mean2 ** 2 + c1) * (var1 + var2 + c2));
+      const psnr = 10 * Math.log10((255 * 255) / (mse || 1));
+      const rmse = Math.sqrt(mse);
+
+      return { ssim: ssim * 100, psnr, rmse, mae };
+    }
+
+    function updateRecommendations(noiseLevel, noiseType1, noiseType2, weight1, weight2, metrics) {
+      const recs = [];
+      if (noiseLevel < 0.5) {
+        recs.push("Увеличьте интенсивность шума (>0.7) для достижения SSIM < 80% и PSNR < 30 dB.");
+      }
+      if (noiseType1 === 'random' && noiseType2 === 'none' && noiseLevel < 0.7) {
+        recs.push("Попробуйте смешать случайный шум с перлиновым или соль-перец для большей уникальности шума.");
+      }
+      if (weight1 + weight2 < 0.8) {
+        recs.push("Увеличьте сумму весов шума (>0.8) для заметных отличий.");
+      }
+      if (metrics && (metrics.ssim >= 80 || metrics.psnr >= 30 || metrics.rmse <= 10 || metrics.mae <= 5)) {
+        recs.push("Текущие параметры не лают достаточнойуникальности. Попробуйте цветной шум или увеличьте масштаб шума.");
+      }
+      recommendationsDiv.textContent = recs.length ? `Рекомендации: ${recs.join(' ')}` : 'Параметры дают оптимальную уникальность изображения.';
+    }
+
+    let cachedNoise1 = null, cachedNoise2 = null;
+    function generateNoise() {
+      resizeCanvas();
+      const width = canvas.width;
+      const height = canvas.height;
+      const spotCount = +document.getElementById('spots').value;
+      const noiseLevel = +document.getElementById('noiseLevel').value;
+      const noiseScale = +document.getElementById('noiseScale').value;
+      const blurRadius = +document.getElementById('blurRadius').value;
+      const medianRadius = +document.getElementById('medianRadius').value;
+      const noiseType1 = document.getElementById('noiseType1').value;
+      const noiseType2 = document.getElementById('noiseType2').value;
+      const weight1 = +document.getElementById('weight1').value;
+      const weight2 = +document.getElementById('weight2').value;
+      const colorNoise = document.getElementById('colorNoise').checked;
+      const alphaLevel = +document.getElementById('alphaLevel').value;
+
+      const imgData = ctx.createImageData(width, height);
+      const spots = [];
+      for (let i = 0; i < spotCount; i++) {
+        spots.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: Math.random() * 200 + 100
+        });
+      }
+
+      let noiseValues1, noiseValues2;
+      if (noiseType1 === 'perlin' || noiseType1 === 'simplex') {
+        if (!cachedNoise1 || cachedNoise1.type !== noiseType1 || cachedNoise1.width !== width || cachedNoise1.height !== height || cachedNoise1.scale !== noiseScale) {
+          noiseValues1 = noiseType1 === 'simplex' ? simplexNoise(width, height, noiseScale, noiseLevel, colorNoise) : perlinNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          cachedNoise1 = { type: noiseType1, width, height, scale: noiseScale, data: noiseValues1 };
+        } else {
+          noiseValues1 = cachedNoise1.data;
+        }
+      }
+      if (noiseType2 === 'perlin' || noiseType2 === 'simplex') {
+        if (!cachedNoise2 || cachedNoise2.type !== noiseType2 || cachedNoise2.width !== width || cachedNoise2.height !== height || cachedNoise2.scale !== noiseScale) {
+          noiseValues2 = noiseType2 === 'simplex' ? simplexNoise(width, height, noiseScale, noiseLevel, colorNoise) : perlinNoise(width, height, scale, noiseLevel, colorNoise);
+          cachedNoise2 = { type: noiseType2, width, height, scale: noiseScale, data: noiseValues2 };
+        } else {
+          noiseValues2 = cachedNoise2.data;
+        }
+      }
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const index = (y * width + x) * 4;
+          let alphaMask = 1;
+
+          for (let spot of spots) {
+            const dx = x - spot.x;
+            const dy = y - spot.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const influence = Math.max(0, 1 - dist / spot.r);
+            alphaMask *= (1 - 0.8 * influence);
+          }
+
+          let r1, g1, b1, r2, g2, b2;
+          if (noiseType1 === 'perlin' || noiseType1 === 'simplex') {
+            const nIndex = (y * width + x) * (colorNoise ? 3 : 1);
+            r1 = noiseValues1[nIndex];
+            g1 = colorNoise ? noiseValues1[nIndex + 1] : r1;
+            b1 = colorNoise ? noiseValues1[nIndex + 2] : r1;
+          } else if (noiseType1 === 'saltPepper') {
+            const rand = Math.random();
+            r1 = rand < 0.05 * noiseLevel ? 255 : rand > 1 - 0.05 * noiseLevel ? 0 : 128;
+            g1 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r1;
+            b1 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r1;
+          } else if (noiseType1 === 'gaussian') {
+            const mean = 128;
+            const std = 50 * noiseLevel;
+            r1 = mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
+            r1 = Math.min(255, Math.max(0, r1));
+            g1 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r1;
+            b1 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r1;
+          } else {
+            r1 = Math.random() * 255 * noiseLevel;
+            g1 = colorNoise ? Math.random() * 255 * noiseLevel : r1;
+            b1 = colorNoise ? Math.random() * 255 * noiseLevel : r1;
+          }
+
+          if (noiseType2 === 'perlin' || noiseType2 === 'simplex') {
+            const nIndex = (y * width + x) * (colorNoise ? 3 : 1);
+            r2 = noiseValues2[nIndex];
+            g2 = colorNoise ? noiseValues2[nIndex + 1] : r2;
+            b2 = colorNoise ? noiseValues2[nIndex + 2] : r2;
+          } else if (noiseType2 === 'saltPepper') {
+            const rand = Math.random();
+            r2 = rand < 0.05 * noiseLevel ? 255 : rand > 1 - 0.05 * noiseLevel ? 0 : 128;
+            g2 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r2;
+            b2 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r2;
+          } else if (noiseType2 === 'gaussian') {
+            const mean = 128;
+            const std = 50 * noiseLevel;
+            r2 = mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
+            r2 = Math.min(255, Math.max(0, r2));
+            g2 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r2;
+            b2 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r2;
+          } else if (noiseType2 === 'random') {
+            r2 = Math.random() * 255 * noiseLevel;
+            g2 = colorNoise ? Math.random() * 255 * noiseLevel : r2;
+            b2 = colorNoise ? Math.random() * 255 * noiseLevel : r2;
+          } else {
+            r2 = r1;
+            g2 = g1;
+            b2 = b1;
+          }
+
+          const r = r1 * weight1 + r2 * weight2;
+          const g = g1 * weight1 + g2 * weight2;
+          const b = b1 * weight1 + b2 * weight2;
+          const alpha = Math.floor(255 * alphaMask * alphaLevel);
+
+          imgData.data[index] = r;
+          imgData.data[index + 1] = g;
+          imgData.data[index + 2] = b;
+          imgData.data[index + 3] = alpha;
+        }
+      }
+
+      let processedData = imgData;
+      if (medianRadius > 0) processedData = medianFilter(processedData, width, height, medianRadius);
+      if (blurRadius > 0) processedData = gaussianBlur(processedData, width, height, blurRadius);
+
+      ctx.putImageData(processedData, 0, 0);
+
+      if (referenceImageData) {
+        const metrics = calculateMetrics(processedData, referenceImageData, width, height);
+        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}`;
+        updateRecommendations(noiseLevel, noiseType1, noiseType2, weight1, weight2, metrics);
+      } else {
+        metricsDiv.textContent = 'SSIM: -, PSNR: -, RMSE: -, MAE: -';
+        updateRecommendations(noiseLevel, noiseType1, noiseType2, weight1, weight2, null);
+      }
+    }
+
+    function download(name = 'noise.png') {
+      const link = document.createElement('a');
+      link.download = name;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+
+    async function saveCopies() {
+      const count = +copiesInput.value;
+      progress.style.display = 'block';
+      for (let i = 0; i < count; i++) {
+        generateNoise();
+        progress.textContent = `Обработка: ${Math.round((i + 1) / count * 100)}%`;
+        await new Promise(resolve => setTimeout(resolve, 100));
+        download(`noise${i + 1}.png`);
+      }
+      progress.style.display = 'none';
+    }
+
+    function saveSettings() {
+      const settings = {
+        width: document.getElementById('width').value,
+        height: document.getElementById('height').value,
+        noiseType1: document.getElementById('noiseType1').value,
+        noiseType2: document.getElementById('noiseType2').value,
+        weight1: document.getElementById('weight1').value,
+        weight2: document.getElementById('weight2').value,
+        noiseLevel: document.getElementById('noiseLevel').value,
+        noiseScale: document.getElementById('noiseScale').value,
+        blurRadius: document.getElementById('blurRadius').value,
+        medianRadius: document.getElementById('medianRadius').value,
+        spots: document.getElementById('spots').value,
+        colorNoise: document.getElementById('colorNoise').checked,
+        alphaLevel: document.getElementById('alphaLevel').value,
+        copies: copiesInput.value
+      };
+      localStorage.setItem('noiseSettings', JSON.stringify(settings));
+      alert('Настройки сохранены!');
+    }
+
+    function loadSettings() {
+      const settings = JSON.parse(localStorage.getItem('noiseSettings'));
+      if (settings) {
+        document.getElementById('width').value = settings.width || 512;
+        document.getElementById('height').value = settings.height || 512;
+        document.getElementById('noiseType1').value = settings.noiseType1 || 'random';
+        document.getElementById('noiseType2').value = settings.noiseType2 || 'none';
+        document.getElementById('weight1').value = settings.weight1 || 0.5;
+        document.getElementById('weight2').value = settings.weight2 || 0.5;
+        document.getElementById('noiseLevel').value = settings.noiseLevel || 0.7;
+        document.getElementById('noiseScale').value = settings.noiseScale || 10;
+        document.getElementById('blurRadius').value = settings.blurRadius || 0;
+        document.getElementById('medianRadius').value = settings.medianRadius || 0;
+        document.getElementById('spots').value = settings.spots || 10;
+        document.getElementById('colorNoise').checked = settings.colorNoise || false;
+        document.getElementById('alphaLevel').value = settings.alphaLevel || 1;
+        copiesInput.value = settings.copies || 5;
+        copiesDisplay.textContent = settings.copies || 5;
+      }
+    }
+
+    document.getElementById('referenceImage').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const img = new Image();
+        img.onload = function() {
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = canvas.width;
+          tempCanvas.height = canvas.height;
+          const tempCtx = tempCanvas.getContext('2d');
+          tempCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          referenceImageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
+          generateNoise();
+        };
+        img.src = URL.createObjectURL(file);
+      }
+    });
+
+    copiesInput.addEventListener('input', () => {
+      copiesDisplay.textContent = copiesInput.value;
+    });
+
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    const inputs = document.querySelectorAll('input, select');
+    inputs.forEach(input => {
+      input.addEventListener('input', debounce(generateNoise, 300));
+    });
+
+    window.addEventListener('resize', generateNoise);
+    loadSettings();
+    generateNoise();
+  </script>
+</body>
+</html>
