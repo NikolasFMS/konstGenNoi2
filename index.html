@@ -183,7 +183,7 @@
       </div>
       <div class="control-group">
         <label>Высота</label>
-        <input type="number" id="height" value="512" min="1" />
+        <input type="number" id="height" value="1024" min="1" />
         <span class="tooltip">Высота шума в пикселях</span>
       </div>
       <div class="control-group">
@@ -1392,7 +1392,7 @@
       if (presets[presetName]) {
         const settings = presets[presetName];
         document.getElementById('width').value = settings.width || 512;
-        document.getElementById('height').value = settings.height || 512;
+        document.getElementById('height').value = settings.height || 1024;
         document.getElementById('colorPalette').value = settings.colorPalette || '#ffffff';
         layers = settings.layers || [{
           id: Date.now(),
