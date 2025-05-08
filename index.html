@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Генератор текстурного шума</title>
+  <title>Генератор шума</title>
   <style>
     :root {
       --bg-color: #222;
@@ -35,6 +35,12 @@
       max-height: 100vh;
       box-sizing: border-box;
     }
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
     canvas {
       border: 1px solid #555;
       border-radius: var(--border-radius);
@@ -64,7 +70,7 @@
       font-weight: 500;
       opacity: 0.9;
     }
-    input[type="number"], select, input[type="checkbox"], input[type="file"] {
+    input[type="number"], select, input[type="checkbox"], input[type="color"] {
       background: #666;
       border: none;
       border-radius: 8px;
@@ -75,11 +81,8 @@
       width: 100%;
       box-sizing: border-box;
     }
-    input[type="number"]:hover, select:hover, input[type="file"]:hover {
+    input[type="number"]:hover, select:hover, input[type="color"]:hover {
       background: #4a545c;
-    }
-    input[type="file"] {
-      padding: 6px;
     }
     button {
       background: var(--accent-color);
@@ -109,6 +112,19 @@
       background: var(--card-bg);
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
+    }
+    .layers {
+      padding: 12px;
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+    }
+    .layer-item {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      padding: 8px;
+      border-bottom: 1px solid #555;
     }
     #progress, #metrics, #recommendations {
       font-size: 14px;
@@ -148,8 +164,11 @@
       opacity: 1;
     }
     @media (max-width: 600px) {
-      .controls {
+      .controls, .layer-item {
         grid-template-columns: 1fr;
+      }
+      canvas {
+        max-height: calc(100vh - 400px);
       }
     }
   </style>
@@ -160,99 +179,42 @@
       <div class="control-group">
         <label>Ширина</label>
         <input type="number" id="width" value="512" min="1" />
-        <span class="tooltip">Ширина текстуры в пикселях</span>
+        <span class="tooltip">Ширина шума в пикселях</span>
       </div>
       <div class="control-group">
         <label>Высота</label>
-        <input type="number" id="height" value="1024" min="1" />
-        <span class="tooltip">Высота текстуры в пикселях</span>
+        <input type="number" id="height" value="512" min="1" />
+        <span class="tooltip">Высота шума в пикселях</span>
       </div>
       <div class="control-group">
-        <label>Тип шума 1</label>
-        <select id="noiseType1">
-          <option value="random">Случайный</option>
-          <option value="perlin">Перлиновый</option>
-          <option value="simplex">Симплекса</option>
-          <option value="saltPepper">Соль-перец</option>
-          <option value="gaussian">Гауссов</option>
-        </select>
-        <span class="tooltip">Первый тип шума</span>
-      </div>
-      <div class="control-group">
-        <label>Вес шума 1</label>
-        <input type="number" id="weight1" value="0.5" min="0" max="1" step="0.01" />
-        <span class="tooltip">Вклад первого шума (0–1)</span>
-      </div>
-      <div class="control-group">
-        <label>Тип шума 2</label>
-        <select id="noiseType2">
-          <option value="none">Нет</option>
-          <option value="random">Случайный</option>
-          <option value="perlin">Перлиновый</option>
-          <option value="simplex">Симплекса</option>
-          <option value="saltPepper">Соль-перец</option>
-          <option value="gaussian">Гауссов</option>
-        </select>
-        <span class="tooltip">Второй тип шума</span>
-      </div>
-      <div class="control-group">
-        <label>Вес шума 2</label>
-        <input type="number" id="weight2" value="0.5" min="0" max="1" step="0.01" />
-        <span class="tooltip">Вклад второго шума (0–1)</span>
-      </div>
-      <div class="control-group">
-        <label>Интенсивность</label>
-        <input type="number" id="noiseLevel" value="0.7" min="0" max="1" step="0.01" />
-        <span class="tooltip">Общая интенсивность шума</span>
-      </div>
-      <div class="control-group">
-        <label>Масштаб шума</label>
-        <input type="number" id="noiseScale" value="10" min="1" max="100" step="1" />
-        <span class="tooltip">Размер деталей шума</span>
-      </div>
-      <div class="control-group">
-        <label>Размытие</label>
-        <input type="number" id="blurRadius" value="0" min="0" max="10" step="0.1" />
-        <span class="tooltip">Радиус гауссова размытия</span>
-      </div>
-      <div class="control-group">
-        <label>Медианный фильтр</label>
-        <input type="number" id="medianRadius" value="0" min="0" max="5" step="1" />
-        <span class="tooltip">Радиус медианного фильтра</span>
-      </div>
-      <div class="control-group">
-        <label>Пятен</label>
-        <input type="number" id="spots" value="10" min="0" />
-        <span class="tooltip">Количество пятен для маски</span>
-      </div>
-      <div class="control-group">
-        <label>Цветной шум</label>
-        <input type="checkbox" id="colorNoise" />
-        <span class="tooltip">Включить RGB-шум</span>
-      </div>
-      <div class="control-group">
-        <label>Альфа-канал</label>
-        <input type="number" id="alphaLevel" value="1" min="0" max="1" step="0.01" />
-        <span class="tooltip">Прозрачность текстуры (0–1)</span>
-      </div>
-      <div class="control-group">
-        <label>Эталонное изобр.</label>
-        <input type="file" id="referenceImage" accept="image/*" />
-        <span class="tooltip">Загрузите изображение для расчета уникальности</span>
+        <label>Цвет шума</label>
+        <input type="color" id="colorPalette" value="#ffffff" />
+        <span class="tooltip">Основной цвет для цветного шума</span>
       </div>
     </div>
 
-    <canvas id="noiseCanvas"></canvas>
+    <div class="layers">
+      <button onclick="addLayer()">Добавить слой</button>
+      <div id="layerList"></div>
+    </div>
+
+    <div id="progress">Обработка: 0%</div>
+
+    <div class="canvas-container">
+      <canvas id="noiseCanvas"></canvas>
+    </div>
 
     <div class="actions">
       <button onclick="generateNoise()">🎲 Сгенерировать</button>
       <button onclick="download()">💾 Скачать</button>
       <button onclick="saveCopies()">📁 Скачать <span id="copiesDisplay">5</span> копий:</button>
       <input type="number" id="copies" value="5" min="1" style="width: 60px;" />
-      <button onclick="saveSettings()">💾 Настройки</button>
+      <button onclick="saveSettings()">💾 Сохранить пресет</button>
+      <button onclick="loadPresets()">📂 Загрузить пресет</button>
+      <button onclick="undo()">↩️ Отменить</button>
+      <button onclick="redo()">↪️ Вернуть</button>
     </div>
-    <div id="progress">Обработка: 0%</div>
-    <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -</div>
+    <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -, Entropy: -</div>
     <div id="recommendations">Рекомендации: -</div>
   </div>
 
@@ -264,191 +226,797 @@
     const recommendationsDiv = document.getElementById('recommendations');
     const copiesInput = document.getElementById('copies');
     const copiesDisplay = document.getElementById('copiesDisplay');
-    let referenceImageData = null;
+    let history = [];
+    let historyIndex = -1;
+    let layers = [{
+      id: Date.now(),
+      noiseType: 'random',
+      weight: 0.5,
+      noiseLevel: 0.7,
+      noiseScale: 10,
+      smoothType: 'gaussian',
+      smoothValue: 0,
+      spots: 10,
+      colorNoise: false,
+      alphaLevel: 1
+    }];
 
-    function resizeCanvas() {
-      const width = +document.getElementById('width').value;
-      const height = +document.getElementById('height').value;
-      canvas.width = width;
-      canvas.height = height;
-      //canvas.style.maxWidth = `${Math.min(width, window.innerWidth - 32)}px`;
-      canvas.style.maxHeight = `calc(100vh - 320px)`;
-    }
+    // Web Worker
+    const noiseWorker = new Worker(URL.createObjectURL(new Blob([`
+      function gaussianBlur(imgData, width, height, radius) {
+        if (radius <= 0) return imgData;
+        const kernelSize = Math.ceil(radius) * 2 + 1;
+        const kernel = [];
+        let sum = 0;
+        const sigma = radius / 3;
 
-    function gaussianBlur(imgData, width, height, radius) {
-      if (radius <= 0) return imgData;
-      const kernelSize = Math.ceil(radius) * 2 + 1;
-      const kernel = [];
-      let sum = 0;
-      const sigma = radius / 3;
-
-      for (let i = -Math.floor(kernelSize / 2); i <= Math.floor(kernelSize / 2); i++) {
-        const value = Math.exp(-(i * i) / (2 * sigma * sigma));
-        kernel.push(value);
-        sum += value;
-      }
-      for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
-
-      const tempData = new Uint8ClampedArray(imgData.data);
-      const outputData = new Uint8ClampedArray(imgData.data);
-
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          let r = 0, g = 0, b = 0, a = 0;
-          for (let i = 0; i < kernel.length; i++) {
-            const offsetX = x + i - Math.floor(kernelSize / 2);
-            if (offsetX >= 0 && offsetX < width) {
-              const index = (y * width + offsetX) * 4;
-              const weight = kernel[i];
-              r += tempData[index] * weight;
-              g += tempData[index + 1] * weight;
-              b += tempData[index + 2] * weight;
-              a += tempData[index + 3] * weight;
-            }
-          }
-          const index = (y * width + x) * 4;
-          outputData[index] = r;
-          outputData[index + 1] = g;
-          outputData[index + 2] = b;
-          outputData[index + 3] = a;
+        for (let i = -Math.floor(kernelSize / 2); i <= Math.floor(kernelSize / 2); i++) {
+          const value = Math.exp(-(i * i) / (2 * sigma * sigma));
+          kernel.push(value);
+          sum += value;
         }
-      }
+        for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
 
-      for (let x = 0; x < width; x++) {
+        const tempData = new Uint8ClampedArray(imgData.data);
+        const outputData = new Uint8ClampedArray(imgData.data);
+
         for (let y = 0; y < height; y++) {
-          let r = 0, g = 0, b = 0, a = 0;
-          for (let i = 0; i < kernel.length; i++) {
-            const offsetY = y + i - Math.floor(kernelSize / 2);
-            if (offsetY >= 0 && offsetY < height) {
-              const index = (offsetY * width + x) * 4;
-              const weight = kernel[i];
-              r += outputData[index] * weight;
-              g += outputData[index + 1] * weight;
-              b += outputData[index + 2] * weight;
-              a += outputData[index + 3] * weight;
+          for (let x = 0; x < width; x++) {
+            let r = 0, g = 0, b = 0, a = 0;
+            for (let i = 0; i < kernel.length; i++) {
+              const offsetX = x + i - Math.floor(kernelSize / 2);
+              if (offsetX >= 0 && offsetX < width) {
+                const index = (y * width + offsetX) * 4;
+                const weight = kernel[i];
+                r += tempData[index] * weight;
+                g += tempData[index + 1] * weight;
+                b += tempData[index + 2] * weight;
+                a += tempData[index + 3] * weight;
+              }
             }
+            const index = (y * width + x) * 4;
+            outputData[index] = r;
+            outputData[index + 1] = g;
+            outputData[index + 2] = b;
+            outputData[index + 3] = a;
           }
-          const index = (y * width + x) * 4;
-          imgData.data[index] = r;
-          imgData.data[index + 1] = g;
-          imgData.data[index + 2] = b;
-          imgData.data[index + 3] = a;
         }
-      }
-      return imgData;
-    }
 
-    function medianFilter(imgData, width, height, radius) {
-      if (radius <= 0) return imgData;
-      const kernelSize = radius * 2 + 1;
-      const outputData = new Uint8ClampedArray(imgData.data);
-
-      for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          const rValues = [], gValues = [], bValues = [], aValues = [];
-          for (let ky = -radius; ky <= radius; ky++) {
-            for (let kx = -radius; kx <= radius; kx++) {
-              const nx = x + kx;
-              const ny = y + ky;
-              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                const index = (ny * width + nx) * 4;
-                rValues.push(imgData.data[index]);
-                gValues.push(imgData.data[index + 1]);
-                bValues.push(imgData.data[index + 2]);
-                aValues.push(imgData.data[index + 3]);
+          for (let y = 0; y < height; y++) {
+            let r = 0, g = 0, b = 0, a = 0;
+            for (let i = 0; i < kernel.length; i++) {
+              const offsetY = y + i - Math.floor(kernelSize / 2);
+              if (offsetY >= 0 && offsetY < height) {
+                const index = (offsetY * width + x) * 4;
+                const weight = kernel[i];
+                r += outputData[index] * weight;
+                g += outputData[index + 1] * weight;
+                b += outputData[index + 2] * weight;
+                a += outputData[index + 3] * weight;
+              }
+            }
+            const index = (y * width + x) * 4;
+            imgData.data[index] = r;
+            imgData.data[index + 1] = g;
+            imgData.data[index + 2] = b;
+            imgData.data[index + 3] = a;
+          }
+        }
+        return imgData;
+      }
+
+      function medianFilter(imgData, width, height, radius) {
+        if (radius <= 0) return imgData;
+        const kernelSize = radius * 2 + 1;
+        const outputData = new Uint8ClampedArray(imgData.data);
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const rValues = [], gValues = [], bValues = [], aValues = [];
+            for (let ky = -radius; ky <= radius; ky++) {
+              for (let kx = -radius; kx <= radius; kx++) {
+                const nx = x + kx;
+                const ny = y + ky;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                  const index = (ny * width + nx) * 4;
+                  rValues.push(imgData.data[index]);
+                  gValues.push(imgData.data[index + 1]);
+                  bValues.push(imgData.data[index + 2]);
+                  aValues.push(imgData.data[index + 3]);
+                }
+              }
+            }
+            rValues.sort((a, b) => a - b);
+            gValues.sort((a, b) => a - b);
+            bValues.sort((a, b) => a - b);
+            aValues.sort((a, b) => a - b);
+            const index = (y * width + x) * 4;
+            outputData[index] = rValues[Math.floor(rValues.length / 2)];
+            outputData[index + 1] = gValues[Math.floor(gValues.length / 2)];
+            outputData[index + 2] = bValues[Math.floor(bValues.length / 2)];
+            outputData[index + 3] = aValues[Math.floor(aValues.length / 2)];
+          }
+        }
+        imgData.data.set(outputData);
+        return imgData;
+      }
+
+      function bilateralFilter(imgData, width, height, sigma) {
+        if (sigma <= 0) return imgData;
+        const kernelSize = Math.ceil(sigma * 3) * 2 + 1;
+        const outputData = new Uint8ClampedArray(imgData.data);
+        const spatialKernel = [];
+        let spatialSum = 0;
+
+        for (let i = -Math.floor(kernelSize / 2); i <= Math.floor(kernelSize / 2); i++) {
+          const value = Math.exp(-(i * i) / (2 * sigma * sigma));
+          spatialKernel.push(value);
+          spatialSum += value;
+        }
+        for (let i = 0; i < spatialKernel.length; i++) spatialKernel[i] /= spatialSum;
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let rSum = 0, gSum = 0, bSum = 0, aSum = 0, weightSum = 0;
+            const centerIndex = (y * width + x) * 4;
+            const centerR = imgData.data[centerIndex];
+            const centerG = imgData.data[centerIndex + 1];
+            const centerB = imgData.data[centerIndex + 2];
+            const centerA = imgData.data[centerIndex + 3];
+
+            for (let ky = -Math.floor(kernelSize / 2); ky <= Math.floor(kernelSize / 2); ky++) {
+              for (let kx = -Math.floor(kernelSize / 2); kx <= Math.floor(kernelSize / 2); kx++) {
+                const nx = x + kx;
+                const ny = y + ky;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                  const index = (ny * width + nx) * 4;
+                  const r = imgData.data[index];
+                  const g = imgData.data[index + 1];
+                  const b = imgData.data[index + 2];
+                  const a = imgData.data[index + 3];
+
+                  const colorDiff = Math.sqrt(
+                    (r - centerR) ** 2 +
+                    (g - centerG) ** 2 +
+                    (b - centerB) ** 2
+                  );
+                  const colorWeight = Math.exp(-(colorDiff * colorDiff) / (2 * sigma * sigma));
+                  const spatialWeight = spatialKernel[kx + Math.floor(kernelSize / 2)] * spatialKernel[ky + Math.floor(kernelSize / 2)];
+                  const weight = colorWeight * spatialWeight;
+
+                  rSum += r * weight;
+                  gSum += g * weight;
+                  bSum += b * weight;
+                  aSum += a * weight;
+                  weightSum += weight;
+                }
+              }
+            }
+
+            const index = (y * width + x) * 4;
+            outputData[index] = rSum / weightSum;
+            outputData[index + 1] = gSum / weightSum;
+            outputData[index + 2] = bSum / weightSum;
+            outputData[index + 3] = aSum / weightSum;
+          }
+        }
+        imgData.data.set(outputData);
+        return imgData;
+      }
+
+      function anisotropicFilter(imgData, width, height, strength) {
+        if (strength <= 0) return imgData;
+        const outputData = new Uint8ClampedArray(imgData.data);
+        const iterations = Math.floor(strength);
+
+        for (let iter = 0; iter < iterations; iter++) {
+          const tempData = new Uint8ClampedArray(outputData);
+          for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+              const index = (y * width + x) * 4;
+              let rGradX = 0, rGradY = 0, gGradX = 0, gGradY = 0, bGradX = 0, bGradY = 0;
+
+              for (let c = 0; c < 3; c++) {
+                const idx = index + c;
+                rGradX += (tempData[idx + 4] - tempData[idx - 4]) * 0.5;
+                rGradY += (tempData[idx + width * 4] - tempData[idx - width * 4]) * 0.5;
+                gGradX += (tempData[idx + 4 + 1] - tempData[idx - 4 + 1]) * 0.5;
+                gGradY += (tempData[idx + width * 4 + 1] - tempData[idx - width * 4 + 1]) * 0.5;
+                bGradX += (tempData[idx + 4 + 2] - tempData[idx - 4 + 2]) * 0.5;
+                bGradY += (tempData[idx + width * 4 + 2] - tempData[idx - width * 4 + 2]) * 0.5;
+              }
+
+              const gradMag = Math.sqrt(rGradX ** 2 + rGradY ** 2 + gGradX ** 2 + gGradY ** 2 + bGradX ** 2 + bGradY ** 2) || 1;
+              const diffusion = Math.exp(-gradMag / strength);
+
+              for (let c = 0; c < 4; c++) {
+                const idx = index + c;
+                const laplacian = (
+                  tempData[idx - 4] +
+                  tempData[idx + 4] +
+                  tempData[idx - width * 4] +
+                  tempData[idx + width * 4] -
+                  4 * tempData[idx]
+                ) * diffusion;
+                outputData[idx] = tempData[idx] + 0.25 * laplacian;
               }
             }
           }
-          rValues.sort((a, b) => a - b);
-          gValues.sort((a, b) => a - b);
-          bValues.sort((a, b) => a - b);
-          aValues.sort((a, b) => a - b);
-          const index = (y * width + x) * 4;
-          outputData[index] = rValues[Math.floor(rValues.length / 2)];
-          outputData[index + 1] = gValues[Math.floor(gValues.length / 2)];
-          outputData[index + 2] = bValues[Math.floor(bValues.length / 2)];
-          outputData[index + 3] = aValues[Math.floor(aValues.length / 2)];
         }
-      }
-      imgData.data.set(outputData);
-      return imgData;
-    }
-
-    function simplexNoise(width, height, scale, intensity, colorNoise) {
-      const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
-      const perm = new Uint8Array(512);
-      for (let i = 0; i < 512; i++) perm[i] = Math.floor(Math.random() * 256);
-
-      function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
-      function lerp(t, a, b) { return a + t * (b - a); }
-      function grad(hash, x, y) {
-        const h = hash & 15;
-        const u = h < 8 ? x : y;
-        const v = h < 4 ? y : h === 12 || h === 14 ? x : 0;
-        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+        imgData.data.set(outputData);
+        return imgData;
       }
 
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
-            const xi = Math.floor(x / scale);
-            const yi = Math.floor(y / scale);
-            const xf = (x / scale) - xi;
-            const yf = (y / scale) - yi;
-            const u = fade(xf);
-            const v = fade(yf);
+      function nonlocalMeansFilter(imgData, width, height, strength) {
+        if (strength <= 0) return imgData;
+        const outputData = new Uint8ClampedArray(imgData.data);
+        const patchSize = 3;
+        const searchWindow = 7;
+        const h = strength * 10;
 
-            const aa = perm[(perm[xi + c] + yi) & 255];
-            const ab = perm[(perm[xi + c] + yi + 1) & 255];
-            const ba = perm[(perm[xi + 1 + c] + yi) & 255];
-            const bb = perm[(perm[xi + 1 + c] + yi + 1) & 255];
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let rSum = 0, gSum = 0, bSum = 0, aSum = 0, weightSum = 0;
+            const centerIndex = (y * width + x) * 4;
 
-            const x1 = lerp(u, grad(aa, xf, yf), grad(ba, xf - 1, yf));
-            const x2 = lerp(u, grad(ab, xf, yf - 1), grad(bb, xf - 1, yf - 1));
-            const value = lerp(v, x1, x2);
-
-            noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
-          }
-        }
-      }
-      return noise;
-    }
-
-    function perlinNoise(width, height, scale, intensity, colorNoise) {
-      const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
-            let value = 0;
-            let amplitude = 1;
-            let frequency = 1 / scale;
-            for (let i = 0; i < 8; i++) {
-              const sampleX = x * frequency;
-              const sampleY = y * frequency;
-              value += amplitude * (Math.random() - 0.5) * 2;
-              amplitude *= 0.5;
-              frequency *= 2;
+            for (let ky = -searchWindow; ky <= searchWindow; ky++) {
+              for (let kx = -searchWindow; kx <= searchWindow; kx++) {
+                const nx = x + kx;
+                const ny = y + ky;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                  let patchDiff = 0;
+                  for (let py = -patchSize; py <= patchSize; py++) {
+                    for (let px = -patchSize; px <= patchSize; px++) {
+                      const cx = x + px;
+                      const cy = y + py;
+                      const nx2 = nx + px;
+                      const ny2 = ny + py;
+                      if (cx >= 0 && cx < width && cy >= 0 && cy < height && nx2 >= 0 && nx2 < width && ny2 >= 0 && ny2 < height) {
+                        const idx1 = (cy * width + cx) * 4;
+                        const idx2 = (ny2 * width + nx2) * 4;
+                        for (let c = 0; c < 3; c++) {
+                          patchDiff += (imgData.data[idx1 + c] - imgData.data[idx2 + c]) ** 2;
+                        }
+                      }
+                    }
+                  }
+                  const weight = Math.exp(-patchDiff / (h * h));
+                  const idx = (ny * width + nx) * 4;
+                  rSum += imgData.data[idx] * weight;
+                  gSum += imgData.data[idx + 1] * weight;
+                  bSum += imgData.data[idx + 2] * weight;
+                  aSum += imgData.data[idx + 3] * weight;
+                  weightSum += weight;
+                }
+              }
             }
-            noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+
+            const index = (y * width + x) * 4;
+            outputData[index] = rSum / weightSum;
+            outputData[index + 1] = gSum / weightSum;
+            outputData[index + 2] = bSum / weightSum;
+            outputData[index + 3] = aSum / weightSum;
           }
         }
+        imgData.data.set(outputData);
+        return imgData;
       }
-      return noise;
+
+      function meanFilter(imgData, width, height, radius) {
+        if (radius <= 0) return imgData;
+        const kernelSize = radius * 2 + 1;
+        const outputData = new Uint8ClampedArray(imgData.data);
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let rSum = 0, gSum = 0, bSum = 0, aSum = 0, count = 0;
+            for (let ky = -radius; ky <= radius; ky++) {
+              for (let kx = -radius; kx <= radius; kx++) {
+                const nx = x + kx;
+                const ny = y + ky;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                  const index = (ny * width + nx) * 4;
+                  rSum += imgData.data[index];
+                  gSum += imgData.data[index + 1];
+                  bSum += imgData.data[index + 2];
+                  aSum += imgData.data[index + 3];
+                  count++;
+                }
+              }
+            }
+            const index = (y * width + x) * 4;
+            outputData[index] = rSum / count;
+            outputData[index + 1] = gSum / count;
+            outputData[index + 2] = bSum / count;
+            outputData[index + 3] = aSum / count;
+          }
+        }
+        imgData.data.set(outputData);
+        return imgData;
+      }
+
+      function simplexNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        const perm = new Uint8Array(512);
+        for (let i = 0; i < 512; i++) perm[i] = Math.floor(Math.random() * 256);
+
+        function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+        function lerp(t, a, b) { return a + t * (b - a); }
+        function grad(hash, x, y) {
+          const h = hash & 15;
+          const u = h < 8 ? x : y;
+          const v = h < 4 ? y : h === 12 || h === 14 ? x : 0;
+          return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+        }
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              const xi = Math.floor(x / scale);
+              const yi = Math.floor(y / scale);
+              const xf = (x / scale) - xi;
+              const yf = (y / scale) - yi;
+              const u = fade(xf);
+              const v = fade(yf);
+
+              const aa = perm[(perm[xi + c] + yi) & 255];
+              const ab = perm[(perm[xi + c] + yi + 1) & 255];
+              const ba = perm[(perm[xi + 1 + c] + yi) & 255];
+              const bb = perm[(perm[xi + 1 + c] + yi + 1) & 255];
+
+              const x1 = lerp(u, grad(aa, xf, yf), grad(ba, xf - 1, yf));
+              const x2 = lerp(u, grad(ab, xf, yf - 1), grad(bb, xf - 1, yf - 1));
+              const value = lerp(v, x1, x2);
+
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function perlinNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              let value = 0;
+              let amplitude = 1;
+              let frequency = 1 / scale;
+              for (let i = 0; i < 8; i++) {
+                const sampleX = x * frequency;
+                const sampleY = y * frequency;
+                value += amplitude * (Math.random() - 0.5) * 2;
+                amplitude *= 0.5;
+                frequency *= 2;
+              }
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function fractalNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              let value = 0;
+              let amplitude = 1;
+              let frequency = 1 / scale;
+              for (let i = 0; i < 6; i++) {
+                const sampleX = x * frequency;
+                const sampleY = y * frequency;
+                value += amplitude * (Math.sin(sampleX) + Math.cos(sampleY));
+                amplitude *= 0.5;
+                frequency *= 2;
+              }
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function cellularNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        const points = [];
+        const numPoints = Math.floor(width * height / (scale * scale));
+        for (let i = 0; i < numPoints; i++) {
+          points.push([Math.random() * width, Math.random() * height]);
+        }
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let minDist = Infinity;
+            for (const point of points) {
+              const dx = x - point[0];
+              const dy = y - point[1];
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              minDist = Math.min(minDist, dist);
+            }
+            const value = Math.min(1, minDist / scale) * intensity;
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * 255));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function worleyNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        const points = [];
+        const numPoints = Math.floor(width * height / (scale * scale));
+        for (let i = 0; i < numPoints; i++) {
+          points.push([Math.random() * width, Math.random() * height]);
+        }
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let distances = [];
+            for (const point of points) {
+              const dx = x - point[0];
+              const dy = y - point[1];
+              distances.push(Math.sqrt(dx * dx + dy * dy));
+            }
+            distances.sort((a, b) => a - b);
+            const value = distances[1] / scale * intensity;
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * 255));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function voronoiNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        const points = [];
+        const numPoints = Math.floor(width * height / (scale * scale));
+        for (let i = 0; i < numPoints; i++) {
+          points.push([Math.random() * width, Math.random() * height]);
+        }
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let minDist = Infinity;
+            let secondMinDist = Infinity;
+            for (const point of points) {
+              const dx = x - point[0];
+              const dy = y - point[1];
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < minDist) {
+                secondMinDist = minDist;
+                minDist = dist;
+              } else if (dist < secondMinDist) {
+                secondMinDist = dist;
+              }
+            }
+            const value = (secondMinDist - minDist) / scale * intensity;
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * 255));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function billowNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              let value = 0;
+              let amplitude = 1;
+              let frequency = 1 / scale;
+              for (let i = 0; i < 6; i++) {
+                const sampleX = x * frequency;
+                const sampleY = y * frequency;
+                value += amplitude * Math.abs(Math.sin(sampleX) + Math.cos(sampleY));
+                amplitude *= 0.5;
+                frequency *= 2;
+              }
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function ridgedNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              let value = 0;
+              let amplitude = 1;
+              let frequency = 1 / scale;
+              for (let i = 0; i < 6; i++) {
+                const sampleX = x * frequency;
+                const sampleY = y * frequency;
+                let n = Math.sin(sampleX) + Math.cos(sampleY);
+                n = 1 - Math.abs(n);
+                n *= n;
+                value += amplitude * n;
+                amplitude *= 0.5;
+                frequency *= 2;
+              }
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function whiteNoise(width, height, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.random() * 255 * intensity;
+            }
+          }
+        }
+        return noise;
+      }
+
+      function pinkNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              let value = 0;
+              let amplitude = 1;
+              let frequency = 1 / scale;
+              for (let i = 0; i < 6; i++) {
+                value += amplitude * (Math.random() - 0.5) * 2 / frequency;
+                amplitude *= 0.5;
+                frequency *= 2;
+              }
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function brownNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        let lastValue = [0, 0, 0];
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              lastValue[c] += (Math.random() - 0.5) * 2 / scale;
+              lastValue[c] = Math.min(1, Math.max(-1, lastValue[c]));
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((lastValue[c] + 1) / 2) * intensity * 255));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function blueNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              let value = 0;
+              let amplitude = 1;
+              let frequency = 1 / scale;
+              for (let i = 0; i < 6; i++) {
+                value += amplitude * (Math.random() - 0.5) * 2 * frequency;
+                amplitude *= 0.5;
+                frequency *= 2;
+              }
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function gradientNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              const nx = x / scale;
+              const ny = y / scale;
+              const value = (Math.sin(nx) + Math.cos(ny)) * intensity;
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * 255 + 255) / 2));
+            }
+          }
+        }
+        return noise;
+      }
+
+      function sparkleNoise(width, height, scale, intensity, colorNoise) {
+        const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+        const points = [];
+        const numPoints = Math.floor(width * height / (scale * scale));
+        for (let i = 0; i < numPoints; i++) {
+          points.push([Math.random() * width, Math.random() * height]);
+        }
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let value = 0;
+            for (const point of points) {
+              const dx = x - point[0];
+              const dy = y - point[1];
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < scale) {
+                value += (1 - dist / scale) * intensity;
+              }
+            }
+            for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+              noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * 255));
+            }
+          }
+        }
+        return noise;
+      }
+
+      self.onmessage = function(e) {
+        try {
+          const { width, height, layer, spots, colorPalette } = e.data;
+          const { noiseType, noiseLevel, noiseScale, smoothType, smoothValue, colorNoise, alphaLevel } = layer;
+
+          const imgData = new ImageData(width, height);
+          const spotArray = [];
+          for (let i = 0; i < spots; i++) {
+            spotArray.push({
+              x: Math.random() * width,
+              y: Math.random() * height,
+              r: Math.random() * 200 + 100
+            });
+          }
+
+          let noiseValues;
+          if (noiseType === 'perlin') {
+            noiseValues = perlinNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'simplex') {
+            noiseValues = simplexNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'fractal') {
+            noiseValues = fractalNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'cellular') {
+            noiseValues = cellularNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'worley') {
+            noiseValues = worleyNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'voronoi') {
+            noiseValues = voronoiNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'billow') {
+            noiseValues = billowNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'ridged') {
+            noiseValues = ridgedNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'white') {
+            noiseValues = whiteNoise(width, height, noiseLevel, colorNoise);
+          } else if (noiseType === 'pink') {
+            noiseValues = pinkNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'brown') {
+            noiseValues = brownNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'blue') {
+            noiseValues = blueNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'saltPepper') {
+            noiseValues = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+            for (let y = 0; y < height; y++) {
+              for (let x = 0; x < width; x++) {
+                for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+                  const rand = Math.random();
+                  noiseValues[(y * width + x) * (colorNoise ? 3 : 1) + c] = rand < 0.05 * noiseLevel ? 255 : rand > 1 - 0.05 * noiseLevel ? 0 : 128;
+                }
+              }
+            }
+          } else if (noiseType === 'gaussian') {
+            noiseValues = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+            for (let y = 0; y < height; y++) {
+              for (let x = 0; x < width; x++) {
+                for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+                  const mean = 128;
+                  const std = 50 * noiseLevel;
+                  const value = mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
+                  noiseValues[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value));
+                }
+              }
+            }
+          } else if (noiseType === 'gradient') {
+            noiseValues = gradientNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else if (noiseType === 'sparkle') {
+            noiseValues = sparkleNoise(width, height, noiseScale, noiseLevel, colorNoise);
+          } else {
+            noiseValues = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+            for (let y = 0; y < height; y++) {
+              for (let x = 0; x < width; x++) {
+                for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+                  noiseValues[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.random() * 255 * noiseLevel;
+                }
+              }
+            }
+          }
+
+          const paletteRGB = colorPalette ? [
+            parseInt(colorPalette.slice(1, 3), 16),
+            parseInt(colorPalette.slice(3, 5), 16),
+            parseInt(colorPalette.slice(5, 7), 16)
+          ] : [255, 255, 255];
+
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const index = (y * width + x) * 4;
+              let alphaMask = 1;
+
+              for (let spot of spotArray) {
+                const dx = x - spot.x;
+                const dy = y - spot.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const influence = Math.max(0, 1 - dist / spot.r);
+                alphaMask *= (1 - 0.8 * influence);
+              }
+
+              const nIndex = (y * width + x) * (colorNoise ? 3 : 1);
+              let r = noiseValues[nIndex];
+              let g = colorNoise ? noiseValues[nIndex + 1] : r;
+              let b = colorNoise ? noiseValues[nIndex + 2] : r;
+
+              r *= paletteRGB[0] / 255;
+              g *= paletteRGB[1] / 255;
+              b *= paletteRGB[2] / 255;
+
+              const alpha = Math.floor(255 * alphaMask * alphaLevel);
+
+              imgData.data[index] = r;
+              imgData.data[index + 1] = g;
+              imgData.data[index + 2] = b;
+              imgData.data[index + 3] = alpha;
+            }
+          }
+
+          let processedData = imgData;
+          if (smoothType === 'gaussian' && smoothValue > 0) {
+            processedData = gaussianBlur(processedData, width, height, smoothValue);
+          } else if (smoothType === 'median' && smoothValue > 0) {
+            processedData = medianFilter(processedData, width, height, Math.round(smoothValue));
+          } else if (smoothType === 'bilateral' && smoothValue > 0) {
+            processedData = bilateralFilter(processedData, width, height, smoothValue);
+          } else if (smoothType === 'anisotropic' && smoothValue > 0) {
+            processedData = anisotropicFilter(processedData, width, height, smoothValue);
+          } else if (smoothType === 'nonlocal' && smoothValue > 0) {
+            processedData = nonlocalMeansFilter(processedData, width, height, smoothValue);
+          } else if (smoothType === 'mean' && smoothValue > 0) {
+            processedData = meanFilter(processedData, width, height, Math.round(smoothValue));
+          }
+
+          self.postMessage({ imgData: processedData }, [processedData.data.buffer]);
+        } catch (error) {
+          self.postMessage({ error: error.message });
+        }
+      };
+    `], { type: 'application/javascript' })));
+
+    function resizeCanvas(width, height) {
+      canvas.width = Math.max(1, width);
+      canvas.height = Math.max(1, height);
     }
 
-    function calculateMetrics(imgData1, imgData2, width, height) {
-      let mse = 0, mae = 0, ssim = 0;
+    function calculateMetrics(imgData, width, height) {
+      const refData = new ImageData(width, height); // Черное изображение как эталон
+      let mse = 0, mae = 0, ssim = 0, entropy = 0;
       let mean1 = 0, mean2 = 0, var1 = 0, var2 = 0, cov = 0;
       const c1 = 0.01 * 255 * 255, c2 = 0.03 * 255 * 255;
+      const histogram = new Array(256).fill(0);
 
       for (let i = 0; i < width * height * 4; i += 4) {
-        const v1 = (imgData1.data[i] + imgData1.data[i + 1] + imgData1.data[i + 2]) / 3;
-        const v2 = (imgData2.data[i] + imgData2.data[i + 1] + imgData2.data[i + 2]) / 3;
+        const v1 = (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
+        const v2 = (refData.data[i] + refData.data[i + 1] + refData.data[i + 2]) / 3;
         const diff = v1 - v2;
         mse += diff * diff;
         mae += Math.abs(diff);
         mean1 += v1;
         mean2 += v2;
+        histogram[Math.floor(v1)]++;
       }
 
       mse /= (width * height);
@@ -457,8 +1025,8 @@
       mean2 /= (width * height);
 
       for (let i = 0; i < width * height * 4; i += 4) {
-        const v1 = (imgData1.data[i] + imgData1.data[i + 1] + imgData1.data[i + 2]) / 3;
-        const v2 = (imgData2.data[i] + imgData2.data[i + 1] + imgData2.data[i + 2]) / 3;
+        const v1 = (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
+        const v2 = (refData.data[i] + refData.data[i + 1] + refData.data[i + 2]) / 3;
         var1 += (v1 - mean1) ** 2;
         var2 += (v2 - mean2) ** 2;
         cov += (v1 - mean1) * (v2 - mean2);
@@ -472,161 +1040,301 @@
       const psnr = 10 * Math.log10((255 * 255) / (mse || 1));
       const rmse = Math.sqrt(mse);
 
-      return { ssim: ssim * 100, psnr, rmse, mae };
+      // Вычисление энтропии
+      const totalPixels = width * height;
+      for (let i = 0; i < 256; i++) {
+        if (histogram[i] > 0) {
+          const p = histogram[i] / totalPixels;
+          entropy -= p * Math.log2(p);
+        }
+      }
+
+      return { ssim: ssim * 100, psnr, rmse, mae, entropy };
     }
 
-    function updateRecommendations(noiseLevel, noiseType1, noiseType2, weight1, weight2, metrics) {
+    function updateRecommendations(metrics) {
       const recs = [];
-      if (noiseLevel < 0.5) {
-        recs.push("Увеличьте интенсивность шума (>0.7) для достижения SSIM < 80% и PSNR < 30 dB.");
+      if (metrics.ssim > 90) {
+        recs.push("Увеличьте интенсивность шума для большей вариативности.");
+      } else if (metrics.rmse < 10) {
+        recs.push("Попробуйте уменьшить интенсивность или добавить сглаживание.");
       }
-      if (noiseType1 === 'random' && noiseType2 === 'none' && noiseLevel < 0.7) {
-        recs.push("Попробуйте смешать случайный шум с перлиновым или соль-перец для большей уникальности шума.");
+      if (metrics.entropy < 6) {
+        recs.push("Добавьте более сложные типы шума (например, fractal или worley) для повышения уникальности.");
       }
-      if (weight1 + weight2 < 0.8) {
-        recs.push("Увеличьте сумму весов шума (>0.8) для заметных отличий.");
-      }
-      if (metrics && (metrics.ssim >= 80 || metrics.psnr >= 30 || metrics.rmse <= 10 || metrics.mae <= 5)) {
-        recs.push("Текущие параметры не лают достаточнойуникальности. Попробуйте цветной шум или увеличьте масштаб шума.");
-      }
-      recommendationsDiv.textContent = recs.length ? `Рекомендации: ${recs.join(' ')}` : 'Параметры дают оптимальную уникальность изображения.';
+      recommendationsDiv.textContent = recs.length ? `Рекомендации: ${recs.join(' ')}` : 'Параметры оптимальны.';
     }
 
-    let cachedNoise1 = null, cachedNoise2 = null;
-    function generateNoise() {
-      resizeCanvas();
-      const width = canvas.width;
-      const height = canvas.height;
-      const spotCount = +document.getElementById('spots').value;
-      const noiseLevel = +document.getElementById('noiseLevel').value;
-      const noiseScale = +document.getElementById('noiseScale').value;
-      const blurRadius = +document.getElementById('blurRadius').value;
-      const medianRadius = +document.getElementById('medianRadius').value;
-      const noiseType1 = document.getElementById('noiseType1').value;
-      const noiseType2 = document.getElementById('noiseType2').value;
-      const weight1 = +document.getElementById('weight1').value;
-      const weight2 = +document.getElementById('weight2').value;
-      const colorNoise = document.getElementById('colorNoise').checked;
-      const alphaLevel = +document.getElementById('alphaLevel').value;
+    function addLayer() {
+      const newLayer = {
+        id: Date.now(),
+        noiseType: 'random',
+        weight: 0.5,
+        noiseLevel: 0.7,
+        noiseScale: 10,
+        smoothType: 'gaussian',
+        smoothValue: 0,
+        spots: 10,
+        colorNoise: false,
+        alphaLevel: 1
+      };
+      layers.push(newLayer);
+      updateLayerUI();
+      saveToHistory();
+      generateNoise();
+    }
 
-      const imgData = ctx.createImageData(width, height);
-      const spots = [];
-      for (let i = 0; i < spotCount; i++) {
-        spots.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          r: Math.random() * 200 + 100
-        });
+    function removeLayer(id) {
+      layers = layers.filter(layer => layer.id !== id);
+      updateLayerUI();
+      generateNoise();
+      saveToHistory();
+    }
+
+    function updateSmoothInputAttributes(layerId, smoothType) {
+      const input = document.querySelector(`#smoothValue-${layerId}`);
+      const tooltip = input.parentElement.querySelector('.tooltip');
+      if (smoothType === 'gaussian') {
+        input.min = 0;
+        input.max = 10;
+        input.step = 0.1;
+        tooltip.textContent = 'Радиус гауссова размытия (0–10)';
+      } else if (smoothType === 'median') {
+        input.min = 0;
+        input.max = 5;
+        input.step = 1;
+        tooltip.textContent = 'Радиус медианного фильтра (0–5)';
+      } else if (smoothType === 'bilateral') {
+        input.min = 0;
+        input.max = 5;
+        input.step = 0.1;
+        tooltip.textContent = 'Сигма билатерального фильтра (0–5)';
+      } else if (smoothType === 'anisotropic') {
+        input.min = 0;
+        input.max = 10;
+        input.step = 0.1;
+        tooltip.textContent = 'Сила анизотропного сглаживания (0–10)';
+      } else if (smoothType === 'nonlocal') {
+        input.min = 0;
+        input.max = 5;
+        input.step = 0.1;
+        tooltip.textContent = 'Сила нелокального сглаживания (0–5)';
+      } else if (smoothType === 'mean') {
+        input.min = 0;
+        input.max = 5;
+        input.step = 1;
+        tooltip.textContent = 'Радиус усредняющего фильтра (0–5)';
       }
+    }
 
-      let noiseValues1, noiseValues2;
-      if (noiseType1 === 'perlin' || noiseType1 === 'simplex') {
-        if (!cachedNoise1 || cachedNoise1.type !== noiseType1 || cachedNoise1.width !== width || cachedNoise1.height !== height || cachedNoise1.scale !== noiseScale) {
-          noiseValues1 = noiseType1 === 'simplex' ? simplexNoise(width, height, noiseScale, noiseLevel, colorNoise) : perlinNoise(width, height, noiseScale, noiseLevel, colorNoise);
-          cachedNoise1 = { type: noiseType1, width, height, scale: noiseScale, data: noiseValues1 };
-        } else {
-          noiseValues1 = cachedNoise1.data;
-        }
+    function updateLayerUI() {
+      const layerList = document.getElementById('layerList');
+      layerList.innerHTML = '';
+      layers.forEach(layer => {
+        const div = document.createElement('div');
+        div.className = 'layer-item';
+        div.innerHTML = `
+          <div class="control-group">
+            <label>Тип шума</label>
+            <select onchange="updateLayer(${layer.id}, 'noiseType', this.value)">
+              <option value="random" ${layer.noiseType === 'random' ? 'selected' : ''}>Случайный</option>
+              <option value="perlin" ${layer.noiseType === 'perlin' ? 'selected' : ''}>Перлиновый</option>
+              <option value="simplex" ${layer.noiseType === 'simplex' ? 'selected' : ''}>Симплекса</option>
+              <option value="fractal" ${layer.noiseType === 'fractal' ? 'selected' : ''}>Фрактальный</option>
+              <option value="cellular" ${layer.noiseType === 'cellular' ? 'selected' : ''}>Клеточный</option>
+              <option value="worley" ${layer.noiseType === 'worley' ? 'selected' : ''}>Ворли</option>
+              <option value="voronoi" ${layer.noiseType === 'voronoi' ? 'selected' : ''}>Вороной</option>
+              <option value="billow" ${layer.noiseType === 'billow' ? 'selected' : ''}>Биллоу</option>
+              <option value="ridged" ${layer.noiseType === 'ridged' ? 'selected' : ''}>Риджед</option>
+              <option value="white" ${layer.noiseType === 'white' ? 'selected' : ''}>Белый</option>
+              <option value="pink" ${layer.noiseType === 'pink' ? 'selected' : ''}>Розовый</option>
+              <option value="brown" ${layer.noiseType === 'brown' ? 'selected' : ''}>Коричневый</option>
+              <option value="blue" ${layer.noiseType === 'blue' ? 'selected' : ''}>Синий</option>
+              <option value="saltPepper" ${layer.noiseType === 'saltPepper' ? 'selected' : ''}>Соль-перец</option>
+              <option value="gaussian" ${layer.noiseType === 'gaussian' ? 'selected' : ''}>Гауссов</option>
+              <option value="gradient" ${layer.noiseType === 'gradient' ? 'selected' : ''}>Градиентный</option>
+              <option value="sparkle" ${layer.noiseType === 'sparkle' ? 'selected' : ''}>Искры</option>
+            </select>
+            <span class="tooltip">Тип шума для слоя</span>
+          </div>
+          <div class="control-group">
+            <label>Влияние слоя</label>
+            <input type="number" value="${layer.weight}" min="0" max="1" step="0.01" onchange="updateLayer(${layer.id}, 'weight', this.value)" />
+            <span class="tooltip">Влияние слоя на итоговое изображение (0–1)</span>
+          </div>
+          <div class="control-group">
+            <label>Интенсивность</label>
+            <input type="number" value="${layer.noiseLevel}" min="0" max="1" step="0.01" onchange="updateLayer(${layer.id}, 'noiseLevel', this.value)" />
+            <span class="tooltip">Общая интенсивность шума слоя</span>
+          </div>
+          <div class="control-group">
+            <label>Масштаб шума</label>
+            <input type="number" value="${layer.noiseScale}" min="1" max="100" step="1" onchange="updateLayer(${layer.id}, 'noiseScale', this.value)" />
+            <span class="tooltip">Размер деталей шума</span>
+          </div>
+          <div class="control-group">
+            <label>Тип сглаживания</label>
+            <select onchange="updateLayer(${layer.id}, 'smoothType', this.value); updateSmoothInputAttributes(${layer.id}, this.value)">
+              <option value="gaussian" ${layer.smoothType === 'gaussian' ? 'selected' : ''}>Гауссово</option>
+              <option value="median" ${layer.smoothType === 'median' ? 'selected' : ''}>Медианное</option>
+              <option value="bilateral" ${layer.smoothType === 'bilateral' ? 'selected' : ''}>Билатеральное</option>
+              <option value="anisotropic" ${layer.smoothType === 'anisotropic' ? 'selected' : ''}>Анизотропное</option>
+              <option value="nonlocal" ${layer.smoothType === 'nonlocal' ? 'selected' : ''}>Нелокальное</option>
+              <option value="mean" ${layer.smoothType === 'mean' ? 'selected' : ''}>Усредняющее</option>
+            </select>
+            <span class="tooltip">Тип сглаживания для слоя</span>
+          </div>
+          <div class="control-group">
+            <label>Параметр сглаживания</label>
+            <input id="smoothValue-${layer.id}" type="number" value="${layer.smoothValue}" onchange="updateLayer(${layer.id}, 'smoothValue', this.value)" />
+            <span class="tooltip">Радиус или сила сглаживания</span>
+          </div>
+          <div class="control-group">
+            <label>Количество пятен</label>
+            <input type="number" value="${layer.spots}" min="0" max="100" step="1" onchange="updateLayer(${layer.id}, 'spots', this.value)" />
+            <span class="tooltip">Количество пятен для маски</span>
+          </div>
+          <div class="control-group">
+            <label>Цветной шум</label>
+            <input type="checkbox" ${layer.colorNoise ? 'checked' : ''} onchange="updateLayer(${layer.id}, 'colorNoise', this.checked)" />
+            <span class="tooltip">Включить RGB-шум</span>
+          </div>
+          <div class="control-group">
+            <label>Альфа-канал</label>
+            <input type="number" value="${layer.alphaLevel}" min="0" max="1" step="0.01" onchange="updateLayer(${layer.id}, 'alphaLevel', this.value)" />
+            <span class="tooltip">Прозрачность слоя (0–1)</span>
+          </div>
+          <div class="control-group">
+            <button onclick="removeLayer(${layer.id})">Удалить</button>
+          </div>
+        `;
+        layerList.appendChild(div);
+        updateSmoothInputAttributes(layer.id, layer.smoothType);
+      });
+    }
+
+    function updateLayer(id, key, value) {
+      const layer = layers.find(l => l.id === id);
+      if (layer) {
+        layer[key] = key === 'colorNoise' ? value : key === 'smoothType' ? value : +value || value;
+        generateNoise();
+        saveToHistory();
       }
-      if (noiseType2 === 'perlin' || noiseType2 === 'simplex') {
-        if (!cachedNoise2 || cachedNoise2.type !== noiseType2 || cachedNoise2.width !== width || cachedNoise2.height !== height || cachedNoise2.scale !== noiseScale) {
-          noiseValues2 = noiseType2 === 'simplex' ? simplexNoise(width, height, noiseScale, noiseLevel, colorNoise) : perlinNoise(width, height, scale, noiseLevel, colorNoise);
-          cachedNoise2 = { type: noiseType2, width, height, scale: noiseScale, data: noiseValues2 };
-        } else {
-          noiseValues2 = cachedNoise2.data;
-        }
+    }
+
+    function saveToHistory() {
+      history = history.slice(0, historyIndex + 1);
+      history.push({
+        layers: JSON.parse(JSON.stringify(layers)),
+        canvasData: ctx.getImageData(0, 0, canvas.width, canvas.height)
+      });
+      historyIndex++;
+      if (history.length > 50) {
+        history.shift();
+        historyIndex--;
       }
+    }
 
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const index = (y * width + x) * 4;
-          let alphaMask = 1;
+    function undo() {
+      if (historyIndex > 0) {
+        historyIndex--;
+        const state = history[historyIndex];
+        layers = JSON.parse(JSON.stringify(state.layers));
+        ctx.putImageData(state.canvasData, 0, 0);
+        updateLayerUI();
+      }
+    }
 
-          for (let spot of spots) {
-            const dx = x - spot.x;
-            const dy = y - spot.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const influence = Math.max(0, 1 - dist / spot.r);
-            alphaMask *= (1 - 0.8 * influence);
+    function redo() {
+      if (historyIndex < history.length - 1) {
+        historyIndex++;
+        const state = history[historyIndex];
+        layers = JSON.parse(JSON.stringify(state.layers));
+        ctx.putImageData(state.canvasData, 0, 0);
+        updateLayerUI();
+      }
+    }
+
+    async function generateNoise(preview = false) {
+      try {
+        const widthInput = +document.getElementById('width').value;
+        const heightInput = +document.getElementById('height').value;
+        const width = preview ? Math.min(widthInput, 256) : widthInput;
+        const height = preview ? Math.min(heightInput, 256) : heightInput;
+        resizeCanvas(width, height);
+        const colorPalette = document.getElementById('colorPalette').value;
+
+        progress.style.display = 'block';
+        progress.textContent = 'Обработка: 0%';
+        ctx.clearRect(0, 0, width, height);
+
+        const finalImageData = ctx.createImageData(width, height);
+        const chunkSize = Math.ceil(height / 10);
+
+        for (let layer of layers) {
+          const chunkImageData = await new Promise((resolve, reject) => {
+            noiseWorker.onmessage = function(e) {
+              if (e.data.error) {
+                reject(new Error(e.data.error));
+              } else {
+                resolve(e.data.imgData);
+              }
+            };
+            noiseWorker.onerror = function(e) {
+              reject(new Error('Ошибка в Web Worker: ' + e.message));
+            };
+            noiseWorker.postMessage({
+              width,
+              height,
+              layer,
+              spots: layer.spots || 10,
+              colorPalette
+            });
+          });
+
+          for (let i = 0; i < finalImageData.data.length; i += 4) {
+            finalImageData.data[i] += chunkImageData.data[i] * (layer.weight || 0.5);
+            finalImageData.data[i + 1] += chunkImageData.data[i + 1] * (layer.weight || 0.5);
+            finalImageData.data[i + 2] += chunkImageData.data[i + 2] * (layer.weight || 0.5);
+            finalImageData.data[i + 3] += chunkImageData.data[i + 3] * (layer.weight || 0.5);
           }
 
-          let r1, g1, b1, r2, g2, b2;
-          if (noiseType1 === 'perlin' || noiseType1 === 'simplex') {
-            const nIndex = (y * width + x) * (colorNoise ? 3 : 1);
-            r1 = noiseValues1[nIndex];
-            g1 = colorNoise ? noiseValues1[nIndex + 1] : r1;
-            b1 = colorNoise ? noiseValues1[nIndex + 2] : r1;
-          } else if (noiseType1 === 'saltPepper') {
-            const rand = Math.random();
-            r1 = rand < 0.05 * noiseLevel ? 255 : rand > 1 - 0.05 * noiseLevel ? 0 : 128;
-            g1 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r1;
-            b1 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r1;
-          } else if (noiseType1 === 'gaussian') {
-            const mean = 128;
-            const std = 50 * noiseLevel;
-            r1 = mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
-            r1 = Math.min(255, Math.max(0, r1));
-            g1 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r1;
-            b1 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r1;
-          } else {
-            r1 = Math.random() * 255 * noiseLevel;
-            g1 = colorNoise ? Math.random() * 255 * noiseLevel : r1;
-            b1 = colorNoise ? Math.random() * 255 * noiseLevel : r1;
+          for (let y = 0; y < height; y += chunkSize) {
+            const chunkHeight = Math.min(chunkSize, height - y);
+            const chunkData = ctx.createImageData(width, chunkHeight);
+            for (let cy = 0; cy < chunkHeight; cy++) {
+              for (let x = 0; x < width; x++) {
+                const srcIndex = ((y + cy) * width + x) * 4;
+                const dstIndex = (cy * width + x) * 4;
+                chunkData.data[dstIndex] = finalImageData.data[srcIndex];
+                chunkData.data[dstIndex + 1] = finalImageData.data[srcIndex + 1];
+                chunkData.data[dstIndex + 2] = finalImageData.data[srcIndex + 2];
+                chunkData.data[dstIndex + 3] = finalImageData.data[srcIndex + 3];
+              }
+            }
+            ctx.putImageData(chunkData, 0, y);
+            progress.textContent = `Обработка: ${Math.round((y + chunkHeight) / height * 100)}%`;
+            await new Promise(resolve => requestAnimationFrame(resolve));
           }
-
-          if (noiseType2 === 'perlin' || noiseType2 === 'simplex') {
-            const nIndex = (y * width + x) * (colorNoise ? 3 : 1);
-            r2 = noiseValues2[nIndex];
-            g2 = colorNoise ? noiseValues2[nIndex + 1] : r2;
-            b2 = colorNoise ? noiseValues2[nIndex + 2] : r2;
-          } else if (noiseType2 === 'saltPepper') {
-            const rand = Math.random();
-            r2 = rand < 0.05 * noiseLevel ? 255 : rand > 1 - 0.05 * noiseLevel ? 0 : 128;
-            g2 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r2;
-            b2 = colorNoise ? (Math.random() < 0.05 * noiseLevel ? 255 : Math.random() > 1 - 0.05 * noiseLevel ? 0 : 128) : r2;
-          } else if (noiseType2 === 'gaussian') {
-            const mean = 128;
-            const std = 50 * noiseLevel;
-            r2 = mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random());
-            r2 = Math.min(255, Math.max(0, r2));
-            g2 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r2;
-            b2 = colorNoise ? Math.min(255, Math.max(0, mean + std * Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()))) : r2;
-          } else if (noiseType2 === 'random') {
-            r2 = Math.random() * 255 * noiseLevel;
-            g2 = colorNoise ? Math.random() * 255 * noiseLevel : r2;
-            b2 = colorNoise ? Math.random() * 255 * noiseLevel : r2;
-          } else {
-            r2 = r1;
-            g2 = g1;
-            b2 = b1;
-          }
-
-          const r = r1 * weight1 + r2 * weight2;
-          const g = g1 * weight1 + g2 * weight2;
-          const b = b1 * weight1 + b2 * weight2;
-          const alpha = Math.floor(255 * alphaMask * alphaLevel);
-
-          imgData.data[index] = r;
-          imgData.data[index + 1] = g;
-          imgData.data[index + 2] = b;
-          imgData.data[index + 3] = alpha;
         }
+
+        ctx.putImageData(finalImageData, 0, 0);
+        progress.style.display = 'none';
+
+        const metrics = calculateMetrics(finalImageData, width, height);
+        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}, Entropy: ${metrics.entropy.toFixed(2)}`;
+        updateRecommendations(metrics);
+
+        saveToHistory();
+      } catch (error) {
+        console.error('Ошибка генерации:', error);
+        progress.textContent = 'Ошибка при генерации';
+        progress.style.display = 'block';
       }
+    }
 
-      let processedData = imgData;
-      if (medianRadius > 0) processedData = medianFilter(processedData, width, height, medianRadius);
-      if (blurRadius > 0) processedData = gaussianBlur(processedData, width, height, blurRadius);
-
-      ctx.putImageData(processedData, 0, 0);
-
-      if (referenceImageData) {
-        const metrics = calculateMetrics(processedData, referenceImageData, width, height);
-        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}`;
-        updateRecommendations(noiseLevel, noiseType1, noiseType2, weight1, weight2, metrics);
-      } else {
-        metricsDiv.textContent = 'SSIM: -, PSNR: -, RMSE: -, MAE: -';
-        updateRecommendations(noiseLevel, noiseType1, noiseType2, weight1, weight2, null);
-      }
+    async function previewNoise() {
+      await generateNoise(true);
     }
 
     function download(name = 'noise.png') {
@@ -637,10 +1345,10 @@
     }
 
     async function saveCopies() {
-      const count = +copiesInput.value;
+      const count = +copiesInput.value || 5;
       progress.style.display = 'block';
       for (let i = 0; i < count; i++) {
-        generateNoise();
+        await generateNoise();
         progress.textContent = `Обработка: ${Math.round((i + 1) / count * 100)}%`;
         await new Promise(resolve => setTimeout(resolve, 100));
         download(`noise${i + 1}.png`);
@@ -652,60 +1360,45 @@
       const settings = {
         width: document.getElementById('width').value,
         height: document.getElementById('height').value,
-        noiseType1: document.getElementById('noiseType1').value,
-        noiseType2: document.getElementById('noiseType2').value,
-        weight1: document.getElementById('weight1').value,
-        weight2: document.getElementById('weight2').value,
-        noiseLevel: document.getElementById('noiseLevel').value,
-        noiseScale: document.getElementById('noiseScale').value,
-        blurRadius: document.getElementById('blurRadius').value,
-        medianRadius: document.getElementById('medianRadius').value,
-        spots: document.getElementById('spots').value,
-        colorNoise: document.getElementById('colorNoise').checked,
-        alphaLevel: document.getElementById('alphaLevel').value,
+        layers,
+        colorPalette: document.getElementById('colorPalette').value,
         copies: copiesInput.value
       };
-      localStorage.setItem('noiseSettings', JSON.stringify(settings));
-      alert('Настройки сохранены!');
+      const presetName = prompt('Введите имя пресета:') || 'default';
+      let presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      presets[presetName] = settings;
+      localStorage.setItem('noisePresets', JSON.stringify(presets));
+      alert('Пресет сохранен!');
     }
 
-    function loadSettings() {
-      const settings = JSON.parse(localStorage.getItem('noiseSettings'));
-      if (settings) {
+    function loadPresets() {
+      const presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      const presetName = prompt('Введите имя пресета для загрузки:\nДоступные: ' + Object.keys(presets).join(', '));
+      if (presets[presetName]) {
+        const settings = presets[presetName];
         document.getElementById('width').value = settings.width || 512;
         document.getElementById('height').value = settings.height || 512;
-        document.getElementById('noiseType1').value = settings.noiseType1 || 'random';
-        document.getElementById('noiseType2').value = settings.noiseType2 || 'none';
-        document.getElementById('weight1').value = settings.weight1 || 0.5;
-        document.getElementById('weight2').value = settings.weight2 || 0.5;
-        document.getElementById('noiseLevel').value = settings.noiseLevel || 0.7;
-        document.getElementById('noiseScale').value = settings.noiseScale || 10;
-        document.getElementById('blurRadius').value = settings.blurRadius || 0;
-        document.getElementById('medianRadius').value = settings.medianRadius || 0;
-        document.getElementById('spots').value = settings.spots || 10;
-        document.getElementById('colorNoise').checked = settings.colorNoise || false;
-        document.getElementById('alphaLevel').value = settings.alphaLevel || 1;
+        document.getElementById('colorPalette').value = settings.colorPalette || '#ffffff';
+        layers = settings.layers || [{
+          id: Date.now(),
+          noiseType: 'random',
+          weight: 0.5,
+          noiseLevel: 0.7,
+          noiseScale: 10,
+          smoothType: 'gaussian',
+          smoothValue: 0,
+          spots: 10,
+          colorNoise: false,
+          alphaLevel: 1
+        }];
         copiesInput.value = settings.copies || 5;
         copiesDisplay.textContent = settings.copies || 5;
+        updateLayerUI();
+        generateNoise();
+      } else {
+        alert('Пресет не найден!');
       }
     }
-
-    document.getElementById('referenceImage').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (file) {
-        const img = new Image();
-        img.onload = function() {
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = canvas.width;
-          tempCanvas.height = canvas.height;
-          const tempCtx = tempCanvas.getContext('2d');
-          tempCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          referenceImageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
-          generateNoise();
-        };
-        img.src = URL.createObjectURL(file);
-      }
-    });
 
     copiesInput.addEventListener('input', () => {
       copiesDisplay.textContent = copiesInput.value;
@@ -729,7 +1422,7 @@
     });
 
     window.addEventListener('resize', generateNoise);
-    loadSettings();
+    updateLayerUI();
     generateNoise();
   </script>
 </body>
