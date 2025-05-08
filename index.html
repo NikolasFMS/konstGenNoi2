@@ -1052,7 +1052,7 @@
       return { ssim: ssim * 100, psnr, rmse, mae, entropy };
     }
 
-    function updateRecommendations(metrics) {
+    function updateRecommendations(metrics, generationTime) {
       const recs = [];
       if (metrics.ssim > 90) {
         recs.push("Увеличьте интенсивность шума для большей вариативности.");
@@ -1060,7 +1060,15 @@
         recs.push("Попробуйте уменьшить интенсивность или добавить сглаживание.");
       }
       if (metrics.entropy < 6) {
-        recs.push("Добавьте более сложные типы шума (например, fractal или worley) для повышения уникальности.");
+        recs.push("Добавьте более сложные типы шума (например, Фрактал) для повышения уникальности или усильте влияние слоя.");
+      }
+      if (generationTime > 1000) {
+        recs.push("Время генерации превышает 1 с. Можете уменьшите размер изображения.");
+      } else if (generationTime > 500) {
+        recs.push("Для ускорения попробуйте снизить количество слоев или использовать менее ресурсоемкие фильтры.");
+      }
+      if (layers.length > 3) {
+        recs.push("Много слоев может замедлить генерацию. Попробуйте объединить слои с низким весом.");
       }
       recommendationsDiv.textContent = recs.length ? `Рекомендации: ${recs.join(' ')}` : 'Параметры оптимальны.';
     }
@@ -1142,7 +1150,6 @@
               <option value="simplex" ${layer.noiseType === 'simplex' ? 'selected' : ''}>Симплекса</option>
               <option value="fractal" ${layer.noiseType === 'fractal' ? 'selected' : ''}>Фрактальный</option>
               <option value="cellular" ${layer.noiseType === 'cellular' ? 'selected' : ''}>Клеточный</option>
-              <option value="worley" ${layer.noiseType === 'worley' ? 'selected' : ''}>Ворли</option>
               <option value="voronoi" ${layer.noiseType === 'voronoi' ? 'selected' : ''}>Вороной</option>
               <option value="billow" ${layer.noiseType === 'billow' ? 'selected' : ''}>Биллоу</option>
               <option value="ridged" ${layer.noiseType === 'ridged' ? 'selected' : ''}>Риджед</option>
@@ -1185,7 +1192,7 @@
             <span class="tooltip">Тип сглаживания для слоя</span>
           </div>
           <div class="control-group">
-            <label>Параметр сглаживания</label>
+            <label>Сила сглаживания</label>
             <input id="smoothValue-${layer.id}" type="number" value="${layer.smoothValue}" onchange="updateLayer(${layer.id}, 'smoothValue', this.value)" />
             <span class="tooltip">Радиус или сила сглаживания</span>
           </div>
@@ -1205,7 +1212,9 @@
             <span class="tooltip">Прозрачность слоя (0–1)</span>
           </div>
           <div class="control-group">
+            <label>Удалить слой</label>
             <button onclick="removeLayer(${layer.id})">Удалить</button>
+            <span class="tooltip">Удаляет слой</span>
           </div>
         `;
         layerList.appendChild(div);
@@ -1257,6 +1266,7 @@
 
     async function generateNoise(preview = false) {
       try {
+        const startTime = performance.now();
         const widthInput = +document.getElementById('width').value;
         const heightInput = +document.getElementById('height').value;
         const width = preview ? Math.min(widthInput, 256) : widthInput;
@@ -1321,9 +1331,13 @@
         ctx.putImageData(finalImageData, 0, 0);
         progress.style.display = 'none';
 
+
+        const endTime = performance.now();
+        const generationTime = (endTime - startTime).toFixed(2);
+
         const metrics = calculateMetrics(finalImageData, width, height);
-        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}, Entropy: ${metrics.entropy.toFixed(2)}`;
-        updateRecommendations(metrics);
+        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}, Entropy: ${metrics.entropy.toFixed(2)}, Время генерации: ${generationTime} мс`;
+        updateRecommendations(metrics, generationTime);
 
         saveToHistory();
       } catch (error) {
