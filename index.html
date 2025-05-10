@@ -161,6 +161,7 @@
 
     #progress {
       display: none;
+      background-color: #D12525;
     }
 
     #metrics,
@@ -168,6 +169,10 @@
       display: block;
       font-size: 13px;
       opacity: 0.9;
+    }
+
+    #recommendations {
+      text-align: left;
     }
 
     .tooltip {
@@ -219,10 +224,10 @@
     .modal-content {
       background-color: #2e2e2e;
       margin: 5% auto;
-      padding: 20px;
+      padding: 15px;
       border-radius: 12px;
       width: 80%;
-      max-width: 600px;
+      max-width: 1900px;
       color: white;
       font-family: sans-serif;
       box-shadow: 0 0 15px black;
@@ -236,14 +241,12 @@
     }
 
     .save-section,
-    .load-section {
-      margin-top: 20px;
-    }
+    .load-section {}
 
     .preset-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 2px;
     }
 
     .preset-card {
@@ -314,26 +317,8 @@
   </div>
 
   <div class="container">
+
     <button id="openPresetModalButton">Меню пресетов</button>
-
-    <div class="controls">
-      <div class="control-group">
-        <label>Ширина</label>
-        <input type="number" id="width" value="512" min="1" />
-        <span class="tooltip">Ширина шума в пикселях</span>
-      </div>
-      <div class="control-group">
-        <label>Высота</label>
-        <input type="number" id="height" value="1024" min="1" />
-        <span class="tooltip">Высота шума в пикселях</span>
-      </div>
-      <div class="control-group">
-        <label>Цвет шума</label>
-        <input type="color" id="colorPalette" value="#ffffff" />
-        <span class="tooltip">Основной цвет для цветного шума</span>
-      </div>
-    </div>
-
     <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -, Entropy: -</div>
 
     <div class="layers">
@@ -356,6 +341,24 @@
       <input type="number" id="copies" value="5" min="1" style="width: 60px;" />
       <button onclick="undo()">↩️ Отменить</button>
       <button onclick="redo()">↪️ Вернуть</button>
+    </div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label>Ширина</label>
+        <input type="number" id="width" value="512" min="1" />
+        <span class="tooltip">Ширина шума в пикселях</span>
+      </div>
+      <div class="control-group">
+        <label>Высота</label>
+        <input type="number" id="height" value="1024" min="1" />
+        <span class="tooltip">Высота шума в пикселях</span>
+      </div>
+      <div class="control-group">
+        <label>Цвет шума</label>
+        <input type="color" id="colorPalette" value="#ffffff" />
+        <span class="tooltip">Основной цвет для цветного шума</span>
+      </div>
     </div>
   </div>
 
@@ -1001,6 +1004,425 @@
         return noise;
       }
 
+      function impulseNoise(width, height, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        const rand = Math.random();
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = rand < intensity * 0.1 ? (rand < 0.05 ? 255 : 0) : 128;
+      }
+    }
+  }
+  return noise;
+}
+
+function stripeNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const stripeWidth = scale * 10;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const value = Math.sin(x / stripeWidth) * intensity;
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * 255 + 255) / 2));
+      }
+    }
+  }
+  return noise;
+}
+
+function turbulentNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let value = 0;
+      let amplitude = 1;
+      let frequency = 1 / scale;
+      for (let i = 0; i < 6; i++) {
+        const sampleX = x * frequency;
+        const sampleY = y * frequency;
+        value += amplitude * Math.abs(Math.sin(sampleX + Math.cos(sampleY * frequency)));
+        amplitude *= 0.5;
+        frequency *= 2;
+      }
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+      }
+    }
+  }
+  return noise;
+}
+
+function multilayerPerlinNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const octaves = 4; // Количество октав для многослойности
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        let value = 0;
+        let amplitude = 1;
+        let frequency = 1 / scale;
+        for (let i = 0; i < octaves; i++) {
+          const sampleX = x * frequency + c * 100; // Смещение для цветного шума
+          const sampleY = y * frequency + c * 100;
+          value += amplitude * (Math.sin(sampleX) + Math.cos(sampleY));
+          amplitude *= 0.5; // Уменьшение амплитуды для каждой октавы
+          frequency *= 2; // Увеличение частоты
+        }
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 2) / 4) * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function diamondSquareNoise(width, height, scale, intensity, colorNoise) {
+  const size = Math.max(width, height);
+  const gridSize = Math.pow(2, Math.ceil(Math.log2(size))) + 1;
+  const grid = new Array(gridSize).fill().map(() => new Array(gridSize).fill(0));
+  
+  // Инициализация углов
+  grid[0][0] = (Math.random() - 0.5) * intensity * 255;
+  grid[0][gridSize - 1] = (Math.random() - 0.5) * intensity * 255;
+  grid[gridSize - 1][0] = (Math.random() - 0.5) * intensity * 255;
+  grid[gridSize - 1][gridSize - 1] = (Math.random() - 0.5) * intensity * 255;
+
+  let step = gridSize - 1;
+  let roughness = intensity;
+  
+  while (step > 1) {
+    const halfStep = step / 2;
+    
+    // Diamond step
+    for (let y = halfStep; y < gridSize; y += step) {
+      for (let x = halfStep; x < gridSize; x += step) {
+        const avg = (
+          grid[y - halfStep][x - halfStep] +
+          grid[y - halfStep][x + halfStep] +
+          grid[y + halfStep][x - halfStep] +
+          grid[y + halfStep][x + halfStep]
+        ) / 4;
+        grid[y][x] = avg + (Math.random() - 0.5) * roughness * 255;
+      }
+    }
+    
+    // Square step
+    for (let y = 0; y < gridSize; y += halfStep) {
+      for (let x = (y % step === 0) ? halfStep : 0; x < gridSize; x += step) {
+        let sum = 0, count = 0;
+        if (x >= halfStep) { sum += grid[y][x - halfStep]; count++; }
+        if (x + halfStep < gridSize) { sum += grid[y][x + halfStep]; count++; }
+        if (y >= halfStep) { sum += grid[y - halfStep][x]; count++; }
+        if (y + halfStep < gridSize) { sum += grid[y + halfStep][x]; count++; }
+        grid[y][x] = sum / count + (Math.random() - 0.5) * roughness * 255;
+      }
+    }
+    
+    step /= 2;
+    roughness *= 0.5; // Уменьшение шероховатости
+  }
+
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        const gridX = Math.floor((x / width) * gridSize);
+        const gridY = Math.floor((y / height) * gridSize);
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (grid[gridY][gridX] + 255) / 2));
+      }
+    }
+  }
+  return noise;
+}
+
+function ridgedMultifractalNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const octaves = 4;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        let value = 0;
+        let amplitude = 1;
+        let frequency = 1 / scale;
+        let prev = 1;
+        for (let i = 0; i < octaves; i++) {
+          const sampleX = x * frequency + c * 100;
+          const sampleY = y * frequency + c * 100;
+          let n = Math.sin(sampleX) + Math.cos(sampleY);
+          n = Math.abs(n);
+          n = 1 - n; // Инверсия для резких пиков
+          n *= n * prev; // Усиление резкости
+          prev = n;
+          value += amplitude * n;
+          amplitude *= 0.5;
+          frequency *= 2;
+        }
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (value * intensity * 255 + 255) / 2));
+      }
+    }
+  }
+  return noise;
+}
+function midpointDisplacementNoise(width, height, scale, intensity, colorNoise) {
+  const size = Math.max(width, height);
+  const gridSize = Math.pow(2, Math.ceil(Math.log2(size))) + 1;
+  const grid = new Array(gridSize).fill().map(() => new Array(gridSize).fill(0));
+  
+  // Инициализация углов
+  grid[0][0] = (Math.random() - 0.5) * intensity * 255;
+  grid[0][gridSize - 1] = (Math.random() - 0.5) * intensity * 255;
+  grid[gridSize - 1][0] = (Math.random() - 0.5) * intensity * 255;
+  grid[gridSize - 1][gridSize - 1] = (Math.random() - 0.5) * intensity * 255;
+
+  let step = gridSize - 1;
+  let roughness = intensity;
+  
+  while (step > 1) {
+    const halfStep = step / 2;
+    
+    // Midpoint displacement
+    for (let y = halfStep; y < gridSize; y += step) {
+      for (let x = halfStep; x < gridSize; x += step) {
+        const avg = (
+          grid[y - halfStep][x - halfStep] +
+          grid[y - halfStep][x + halfStep] +
+          grid[y + halfStep][x - halfStep] +
+          grid[y + halfStep][x + halfStep]
+        ) / 4;
+        grid[y][x] = avg + (Math.random() - 0.5) * roughness * 255;
+      }
+    }
+    
+    step /= 2;
+    roughness *= 0.6; // Уменьшение шероховатости
+  }
+
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        const gridX = Math.floor((x / width) * gridSize);
+        const gridY = Math.floor((y / height) * gridSize);
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (grid[gridY][gridX] + 255) / 2));
+      }
+    }
+  }
+  return noise;
+}
+
+function voronoiRidgedNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const points = [];
+  const numPoints = Math.floor(width * height / (scale * scale));
+  for (let i = 0; i < numPoints; i++) {
+    points.push([Math.random() * width, Math.random() * height]);
+  }
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let minDist = Infinity;
+      let secondMinDist = Infinity;
+      for (const point of points) {
+        const dx = x - point[0];
+        const dy = y - point[1];
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+          secondMinDist = minDist;
+          minDist = dist;
+        } else if (dist < secondMinDist) {
+          secondMinDist = dist;
+        }
+      }
+      const value = Math.abs(secondMinDist - minDist) / scale * intensity;
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, (1 - value) * 255)); // Инверсия для резкости
+      }
+    }
+  }
+  return noise;
+}
+
+function waveletNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const layers = 3; // Количество слоев вейвлетов
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        let value = 0;
+        let amplitude = 1;
+        let frequency = 1 / scale;
+        for (let i = 0; i < layers; i++) {
+          const sampleX = x * frequency + c * 50;
+          const sampleY = y * frequency + c * 50;
+          value += amplitude * (Math.sin(sampleX) * Math.cos(sampleY) + (Math.random() - 0.5));
+          amplitude *= 0.7;
+          frequency *= 1.5;
+        }
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+  function erosionNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const baseNoise = perlinNoise(width, height, scale * 2, intensity, colorNoise); // Базовый Перлин для высот
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        const index = (y * width + x) * (colorNoise ? 3 : 1) + c;
+        let value = baseNoise[index] / 255;
+        // Имитация эрозии: усиление низин и сглаживание пиков
+        value = Math.pow(value, 1.5) * (1 - Math.abs(Math.sin(x / scale) * Math.cos(y / scale)) * 0.3);
+        noise[index] = Math.min(255, Math.max(0, value * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function flowNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        // Имитация потоков с использованием синусоидальных искажений
+        const sampleX = x / scale + Math.sin(y / scale) * 2;
+        const sampleY = y / scale + Math.cos(x / scale) * 2;
+        let value = (Math.sin(sampleX) + Math.cos(sampleY)) * 0.5;
+        value += (Math.random() - 0.5) * 0.2; // Легкая случайность
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function organicNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const points = [];
+  const numPoints = Math.floor(width * height / (scale * scale));
+  for (let i = 0; i < numPoints; i++) {
+    points.push([Math.random() * width, Math.random() * height]);
+  }
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let value = 0;
+      for (const point of points) {
+        const dx = x - point[0];
+        const dy = y - point[1];
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        value += Math.exp(-dist / scale) * intensity; // Органический спад
+      }
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * 255));
+      }
+    }
+  }
+  return noise;
+}
+  function cloudNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const baseNoise = perlinNoise(width, height, scale * 3, intensity, colorNoise); // Базовый Перлин для мягких облаков
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        const index = (y * width + x) * (colorNoise ? 3 : 1) + c;
+        let value = baseNoise[index] / 255;
+        // Имитация облаков: усиление контраста и мягкие края
+        value = Math.pow(value, 2) * (1 + Math.sin(x / scale + y / scale) * 0.2);
+        noise[index] = Math.min(255, Math.max(0, value * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function lavaNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        // Имитация лавы: турбулентные искажения с яркими пятнами
+        const sampleX = x / scale + Math.sin(y / (scale * 0.5)) * 1.5;
+        const sampleY = y / scale + Math.cos(x / (scale * 0.5)) * 1.5;
+        let value = Math.abs(Math.sin(sampleX) * Math.cos(sampleY));
+        value += (Math.random() - 0.5) * 0.3; // Случайные вспышки
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function fabricNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        // Имитация ткани: волокнистые узоры с переплетениями
+        const sampleX = x / scale;
+        const sampleY = y / scale;
+        let value = (Math.sin(sampleX * 2) + Math.cos(sampleY * 2)) * 0.5;
+        value += Math.sin((x + y) / scale) * 0.3; // Диагональные волокна
+        value += (Math.random() - 0.5) * 0.1; // Легкая случайность
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}function cloudNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  const baseNoise = perlinNoise(width, height, scale * 3, intensity, colorNoise); // Базовый Перлин для мягких облаков
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        const index = (y * width + x) * (colorNoise ? 3 : 1) + c;
+        let value = baseNoise[index] / 255;
+        // Имитация облаков: усиление контраста и мягкие края
+        value = Math.pow(value, 2) * (1 + Math.sin(x / scale + y / scale) * 0.2);
+        noise[index] = Math.min(255, Math.max(0, value * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function lavaNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        // Имитация лавы: турбулентные искажения с яркими пятнами
+        const sampleX = x / scale + Math.sin(y / (scale * 0.5)) * 1.5;
+        const sampleY = y / scale + Math.cos(x / (scale * 0.5)) * 1.5;
+        let value = Math.abs(Math.sin(sampleX) * Math.cos(sampleY));
+        value += (Math.random() - 0.5) * 0.3; // Случайные вспышки
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, value * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
+
+function fabricNoise(width, height, scale, intensity, colorNoise) {
+  const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
+        // Имитация ткани: волокнистые узоры с переплетениями
+        const sampleX = x / scale;
+        const sampleY = y / scale;
+        let value = (Math.sin(sampleX * 2) + Math.cos(sampleY * 2)) * 0.5;
+        value += Math.sin((x + y) / scale) * 0.3; // Диагональные волокна
+        value += (Math.random() - 0.5) * 0.1; // Легкая случайность
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((value + 1) / 2) * intensity * 255));
+      }
+    }
+  }
+  return noise;
+}
       self.onmessage = function(e) {
         try {
           const { width, height, layer, spots, colorPalette } = e.data;
@@ -1027,9 +1449,23 @@
             noiseValues = cellularNoise(width, height, noiseScale, noiseLevel, colorNoise);
           } else if (noiseType === 'worley') {
             noiseValues = worleyNoise(width, height, noiseScale, noiseLevel, colorNoise);
-          } else if (noiseType === 'voronoi') {
+          } else if (noiseType === 'erosion') {
+  noiseValues = erosionNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'flow') {
+  noiseValues = flowNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'organic') {
+  noiseValues = organicNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'voronoi') {
             noiseValues = voronoiNoise(width, height, noiseScale, noiseLevel, colorNoise);
-          } else if (noiseType === 'billow') {
+          } else if (noiseType === 'cloud') {
+  noiseValues = cloudNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'lava') {
+  noiseValues = lavaNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'fabric') {
+  noiseValues = fabricNoise(width, height, noiseScale, noiseLevel, colorNoise);
+}
+
+            else if (noiseType === 'billow') {
             noiseValues = billowNoise(width, height, noiseScale, noiseLevel, colorNoise);
           } else if (noiseType === 'ridged') {
             noiseValues = ridgedNoise(width, height, noiseScale, noiseLevel, colorNoise);
@@ -1039,9 +1475,23 @@
             noiseValues = pinkNoise(width, height, noiseScale, noiseLevel, colorNoise);
           } else if (noiseType === 'brown') {
             noiseValues = brownNoise(width, height, noiseScale, noiseLevel, colorNoise);
-          } else if (noiseType === 'blue') {
+          } else if (noiseType === 'midpointDisplacement') {
+  noiseValues = midpointDisplacementNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'voronoiRidged') {
+  noiseValues = voronoiRidgedNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'wavelet') {
+  noiseValues = waveletNoise(width, height, noiseScale, noiseLevel, colorNoise);
+
+            } else if (noiseType === 'blue') {
             noiseValues = blueNoise(width, height, noiseScale, noiseLevel, colorNoise);
-          } else if (noiseType === 'saltPepper') {
+          } else if (noiseType === 'multilayerPerlin') {
+  noiseValues = multilayerPerlinNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'diamondSquare') {
+  noiseValues = diamondSquareNoise(width, height, noiseScale, noiseLevel, colorNoise);
+} else if (noiseType === 'ridgedMultifractal') {
+  noiseValues = ridgedMultifractalNoise(width, height, noiseScale, noiseLevel, colorNoise);
+
+            } else if (noiseType === 'saltPepper') {
             noiseValues = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
             for (let y = 0; y < height; y++) {
               for (let x = 0; x < width; x++) {
@@ -1144,10 +1594,11 @@
 
     function calculateMetrics(imgData, width, height) {
       const refData = new ImageData(width, height); // Черное изображение как эталон
-      let mse = 0, mae = 0, ssim = 0, entropy = 0;
+      let mse = 0, mae = 0, ssim = 0, entropy = 0, ae = 0, ncc = 0;
       let mean1 = 0, mean2 = 0, var1 = 0, var2 = 0, cov = 0;
       const c1 = 0.01 * 255 * 255, c2 = 0.03 * 255 * 255;
       const histogram = new Array(256).fill(0);
+      let sumDiff = 0, sum1 = 0, sum2 = 0, sum1squared = 0, sum2squared = 0, sumProduct = 0;
 
       for (let i = 0; i < width * height * 4; i += 4) {
         const v1 = (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
@@ -1155,15 +1606,27 @@
         const diff = v1 - v2;
         mse += diff * diff;
         mae += Math.abs(diff);
+        sumDiff += diff; // Для AE
         mean1 += v1;
         mean2 += v2;
+        sum1 += v1;
+        sum2 += v2;
+        sum1squared += v1 * v1;
+        sum2squared += v2 * v2;
+        sumProduct += v1 * v2;
         histogram[Math.floor(v1)]++;
       }
 
-      mse /= (width * height);
-      mae /= (width * height);
-      mean1 /= (width * height);
-      mean2 /= (width * height);
+      const totalPixels = width * height;
+      mse /= totalPixels;
+      mae /= totalPixels;
+      mean1 /= totalPixels;
+      mean2 /= totalPixels;
+      ae = sumDiff / totalPixels; // Средняя ошибка (AE)
+
+      // NCC = Σ((x - μx)(y - μy)) / sqrt(Σ(x - μx)² * Σ(y - μy)²)
+      ncc = (sumProduct - sum1 * sum2 / totalPixels) /
+        Math.sqrt((sum1squared - sum1 * sum1 / totalPixels) * (sum2squared - sum2 * sum2 / totalPixels)) || 0;
 
       for (let i = 0; i < width * height * 4; i += 4) {
         const v1 = (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
@@ -1173,16 +1636,14 @@
         cov += (v1 - mean1) * (v2 - mean2);
       }
 
-      var1 /= (width * height);
-      var2 /= (width * height);
-      cov /= (width * height);
+      var1 /= totalPixels;
+      var2 /= totalPixels;
+      cov /= totalPixels;
 
       ssim = ((2 * mean1 * mean2 + c1) * (2 * cov + c2)) / ((mean1 ** 2 + mean2 ** 2 + c1) * (var1 + var2 + c2));
       const psnr = 10 * Math.log10((255 * 255) / (mse || 1));
       const rmse = Math.sqrt(mse);
 
-      // Вычисление энтропии
-      const totalPixels = width * height;
       for (let i = 0; i < 256; i++) {
         if (histogram[i] > 0) {
           const p = histogram[i] / totalPixels;
@@ -1190,23 +1651,69 @@
         }
       }
 
-      return { ssim: ssim * 100, psnr, rmse, mae, entropy };
+      return { ssim: ssim * 100, psnr, rmse, mae, entropy, ae, ncc: ncc * 100 };
     }
 
     function updateRecommendations(metrics, generationTime) {
       const recs = [];
-      if (metrics.ssim > 90) {
-        recs.push("Увеличьте интенсивность шума для большей вариативности.");
-      } else if (metrics.rmse < 10) {
-        recs.push("Попробуйте уменьшить интенсивность или добавить сглаживание.");
+
+      // Рекомендации по SSIM (Structural Similarity Index)
+      if (metrics.ssim > 70) {
+        recs.push("Схожесть структуры высока (SSIM > 70%). Попробуйте увеличить интенсивность шума или использовать типы шума с высокой вариативностью (например, 'saltPepper', 'sparkle', 'white').");
+      } else if (metrics.ssim < 30) {
+        recs.push("Структурное отличие очень велико (SSIM < 30%). Шум очень агрессивный.");
       }
+
+      // Рекомендации по PSNR (Peak Signal-to-Noise Ratio)
+      if (metrics.psnr > 30) {
+        recs.push("PSNR высокий (> 30 дБ) — изображение мало отличается от оригинала. Увеличьте уровень шума или примените цветной шум.");
+      } else if (metrics.psnr < 20) {
+        recs.push("PSNR низкий (< 20 дБ) — шум очень сильный.");
+      }
+
+      // Рекомендации по RMSE (Root Mean Square Error)
+      if (metrics.rmse > 80) {
+        recs.push("RMSE очень высокий (> 80) — шум значительно меняет яркость пикселей.");
+      } else if (metrics.rmse < 20) {
+        recs.push("RMSE низкий (< 20) — изменения между оригиналом и шумовым изображением минимальны. Усильте шум или измените тип.");
+      }
+
+      // Рекомендации по MAE (Mean Absolute Error)
+      if (metrics.mae > 60) {
+        recs.push("MAE выше 60 — среднее отклонение велико. Шум сильно влияет на изображение.");
+      } else if (metrics.mae < 10) {
+        recs.push("MAE ниже 10 — различия почти незаметны. Увеличьте вес слоя или интенсивность шума.");
+      }
+
+      // Рекомендации по AE (Average Error)
+      if (Math.abs(metrics.ae) > 50) {
+        recs.push("AE (средняя разница) больше 50 — шум смещает яркость в сторону светлых или темных тонов. Это может повлиять на восприятие.");
+      } else if (metrics.ae === 0) {
+        recs.push("AE равен 0 — шум не влияет на общую яркость. Это нормально, если используется симметричный шум.");
+      }
+
+      // Рекомендации по NCC (Normalized Cross-Correlation)
+      if (metrics.ncc > 70) {
+        recs.push("NCC выше 70% — изображения сильно коррелируют. Снизьте схожесть с помощью более случайного шума или нескольких слоёв.");
+      } else if (metrics.ncc < 30) {
+        recs.push("NCC ниже 30% — корреляция мала. Это хорошо, чтобы добиться значительного отличия от оригинала.");
+      }
+
+      // Рекомендации по Entropy (энтропия)
       if (metrics.entropy < 6) {
-        recs.push("Добавьте более сложные типы шума (например, Фрактал) для повышения уникальности или усильте влияние слоя.");
+        recs.push("Энтропия низкая (< 6) — текстура шума недостаточно случайна. Используйте типы шума с хаотичной структурой (например, 'Искра', 'Белый', 'Соль-Перец').");
+      } else if (metrics.entropy > 8) {
+        recs.push("Энтропия высокая (> 8) — текстура шума очень случайна. Это отлично подходит для маскировки содержимого изображения.");
       }
-      if (layers.length > 3) {
-        recs.push("Много слоев может замедлить генерацию. Попробуйте объединить слои с низким весом.");
+
+      // Рекомендации по производительности
+      if (layers.length > 4) {
+        recs.push("У вас больше 4 слоёв шума. Это может замедлять генерацию. Попробуйте объединить слои с малым весом.");
       }
-      recommendationsDiv.textContent = recs.length ? `Рекомендации: ${recs.join(' ')}` : 'Параметры оптимальны.';
+
+      recommendationsDiv.innerHTML = recs.length
+        ? `Рекомендации:<br>• ${recs.join('<br>• ')}`
+        : 'Параметры оптимальны.';
     }
 
     function addLayer() {
@@ -1281,23 +1788,37 @@
           <div class="control-group">
             <label>Тип шума</label>
             <select onchange="updateLayer(${layer.id}, 'noiseType', this.value)">
-              <option value="random" ${layer.noiseType === 'random' ? 'selected' : ''}>Случайный</option>
-              <option value="perlin" ${layer.noiseType === 'perlin' ? 'selected' : ''}>Перлиновый</option>
-              <option value="simplex" ${layer.noiseType === 'simplex' ? 'selected' : ''}>Симплекса</option>
-              <option value="fractal" ${layer.noiseType === 'fractal' ? 'selected' : ''}>Фрактальный</option>
-              <option value="cellular" ${layer.noiseType === 'cellular' ? 'selected' : ''}>Клеточный</option>
-              <option value="voronoi" ${layer.noiseType === 'voronoi' ? 'selected' : ''}>Вороной</option>
-              <option value="billow" ${layer.noiseType === 'billow' ? 'selected' : ''}>Биллоу</option>
-              <option value="ridged" ${layer.noiseType === 'ridged' ? 'selected' : ''}>Риджед</option>
-              <option value="white" ${layer.noiseType === 'white' ? 'selected' : ''}>Белый</option>
-              <option value="pink" ${layer.noiseType === 'pink' ? 'selected' : ''}>Розовый</option>
-              <option value="brown" ${layer.noiseType === 'brown' ? 'selected' : ''}>Коричневый</option>
-              <option value="blue" ${layer.noiseType === 'blue' ? 'selected' : ''}>Синий</option>
-              <option value="saltPepper" ${layer.noiseType === 'saltPepper' ? 'selected' : ''}>Соль-перец</option>
-              <option value="gaussian" ${layer.noiseType === 'gaussian' ? 'selected' : ''}>Гауссов</option>
-              <option value="gradient" ${layer.noiseType === 'gradient' ? 'selected' : ''}>Градиентный</option>
-              <option value="sparkle" ${layer.noiseType === 'sparkle' ? 'selected' : ''}>Искры</option>
-            </select>
+            <option value="perlin" ${layer.noiseType === 'perlin' ? 'selected' : ''}>Перлиновый</option>
+            <option value="simplex" ${layer.noiseType === 'simplex' ? 'selected' : ''}>Симплекса</option>
+            <option value="fractal" ${layer.noiseType === 'fractal' ? 'selected' : ''}>Фрактальный</option>
+            <option value="cellular" ${layer.noiseType === 'cellular' ? 'selected' : ''}>Клеточный</option>
+            <option value="voronoi" ${layer.noiseType === 'voronoi' ? 'selected' : ''}>Вороной</option>
+            <option value="billow" ${layer.noiseType === 'billow' ? 'selected' : ''}>Биллоу</option>
+            <option value="ridged" ${layer.noiseType === 'ridged' ? 'selected' : ''}>Риджед</option>
+            <option value="white" ${layer.noiseType === 'white' ? 'selected' : ''}>Белый</option>
+            <option value="pink" ${layer.noiseType === 'pink' ? 'selected' : ''}>Розовый</option>
+            <option value="brown" ${layer.noiseType === 'brown' ? 'selected' : ''}>Коричневый</option>
+            <option value="blue" ${layer.noiseType === 'blue' ? 'selected' : ''}>Синий</option>
+            <option value="saltPepper" ${layer.noiseType === 'saltPepper' ? 'selected' : ''}>Соль-перец</option>
+            <option value="gaussian" ${layer.noiseType === 'gaussian' ? 'selected' : ''}>Гауссов</option>
+            <option value="gradient" ${layer.noiseType === 'gradient' ? 'selected' : ''}>Градиентный</option>
+            <option value="sparkle" ${layer.noiseType === 'sparkle' ? 'selected' : ''}>Искры</option>
+            <option value="impulse" ${layer.noiseType === 'impulse' ? 'selected' : ''}>Импульсный</option>
+            <option value="stripe" ${layer.noiseType === 'stripe' ? 'selected' : ''}>Полосатый</option>
+            <option value="turbulent" ${layer.noiseType === 'turbulent' ? 'selected' : ''}>Турбулентный</option>
+            <option value="multilayerPerlin" ${layer.noiseType === 'multilayerPerlin' ? 'selected' : ''}>Многоуровневый Перлин</option>
+            <option value="diamondSquare" ${layer.noiseType === 'diamondSquare' ? 'selected' : ''}>Алмазный квадрат</option>
+            <option value="ridgedMultifractal" ${layer.noiseType === 'ridgedMultifractal' ? 'selected' : ''}>Риджед Мультифрактал</option>
+            <option value="midpointDisplacement" ${layer.noiseType === 'midpointDisplacement' ? 'selected' : ''}>Смещение средней точки</option>
+            <option value="voronoiRidged" ${layer.noiseType === 'voronoiRidged' ? 'selected' : ''}>Вороной Риджед</option>
+            <option value="wavelet" ${layer.noiseType === 'wavelet' ? 'selected' : ''}>Вейвлет</option>
+            <option value="erosion" ${layer.noiseType === 'erosion' ? 'selected' : ''}>Эрозия</option>
+            <option value="flow" ${layer.noiseType === 'flow' ? 'selected' : ''}>Потоки</option>
+            <option value="organic" ${layer.noiseType === 'organic' ? 'selected' : ''}>Органический</option>
+            <option value="cloud" ${layer.noiseType === 'cloud' ? 'selected' : ''}>Облака</option>
+            <option value="lava" ${layer.noiseType === 'lava' ? 'selected' : ''}>Лава</option>
+            <option value="fabric" ${layer.noiseType === 'fabric' ? 'selected' : ''}>Ткань</option>
+          </select>
             <span class="tooltip">Тип шума для слоя</span>
           </div>
           <div class="control-group">
@@ -1420,11 +1941,8 @@
         for (let layer of layers) {
           const chunkImageData = await new Promise((resolve, reject) => {
             noiseWorker.onmessage = function (e) {
-              if (e.data.error) {
-                reject(new Error(e.data.error));
-              } else {
-                resolve(e.data.imgData);
-              }
+              if (e.data.error) reject(new Error(e.data.error));
+              else resolve(e.data.imgData);
             };
             noiseWorker.onerror = function (e) {
               reject(new Error('Ошибка в Web Worker: ' + e.message));
@@ -1432,17 +1950,21 @@
             noiseWorker.postMessage({
               width,
               height,
-              layer,
+              layer: {
+                ...layer,
+                noiseLevel: layer.noiseLevel * (1 + Math.random() * 0.5), // Рандомизация интенсивности
+                alphaLevel: Math.min(1, layer.alphaLevel * 1.2), // Увеличение прозрачности
+              },
               spots: layer.spots || 10,
-              colorPalette
+              colorPalette,
             });
           });
 
           for (let i = 0; i < finalImageData.data.length; i += 4) {
-            finalImageData.data[i] += chunkImageData.data[i] * (layer.weight || 0.5);
-            finalImageData.data[i + 1] += chunkImageData.data[i + 1] * (layer.weight || 0.5);
-            finalImageData.data[i + 2] += chunkImageData.data[i + 2] * (layer.weight || 0.5);
-            finalImageData.data[i + 3] += chunkImageData.data[i + 3] * (layer.weight || 0.5);
+            finalImageData.data[i] += chunkImageData.data[i] * (layer.weight * 1.5); // Увеличение веса
+            finalImageData.data[i + 1] += chunkImageData.data[i + 1] * (layer.weight * 1.5);
+            finalImageData.data[i + 2] += chunkImageData.data[i + 2] * (layer.weight * 1.5);
+            finalImageData.data[i + 3] += chunkImageData.data[i + 3] * (layer.weight * 1.5);
           }
 
           for (let y = 0; y < height; y += chunkSize) {
@@ -1472,8 +1994,7 @@
         const generationTime = (endTime - startTime).toFixed(2);
 
         const metrics = calculateMetrics(finalImageData, width, height);
-        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}, Entropy: ${metrics.entropy.toFixed(2)}, Время генерации: ${generationTime} мс`;
-        updateRecommendations(metrics, generationTime);
+        metricsDiv.textContent = `SSIM: ${metrics.ssim.toFixed(2)}%, PSNR: ${metrics.psnr.toFixed(2)} dB, RMSE: ${metrics.rmse.toFixed(2)}, MAE: ${metrics.mae.toFixed(2)}, AE: ${metrics.ae.toFixed(2)}, NCC: ${metrics.ncc.toFixed(2)}%, Entropy: ${metrics.entropy.toFixed(2)}, Время генерации: ${generationTime} мс`; updateRecommendations(metrics, generationTime);
 
         saveToHistory();
       } catch (error) {
@@ -1531,8 +2052,8 @@
         document.getElementById('colorPalette').value = settings.colorPalette || '#ffffff';
         layers = settings.layers || [{
           id: Date.now(),
-          noiseType: 'random',
-          weight: 0.5,
+          noiseType: 'perlin',
+          weight: 1,
           noiseLevel: 0.7,
           noiseScale: 10,
           smoothType: 'gaussian',
@@ -1632,6 +2153,7 @@
     }
 
     function updatePresetList() {
+
       const listContainer = document.getElementById("presetList");
       listContainer.innerHTML = "";
 
@@ -1682,6 +2204,627 @@
         alphaLevel: 1
       }];
     }
+
+    function initializePresets() {
+      const defaultPresets = [
+        {
+          "name": "Соль-перец + Искры",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ffffff",
+          "copies": 5,
+          "layers": [
+            {
+              "noiseType": "saltPepper",
+              "weight": 0.6,
+              "noiseLevel": 1,
+              "spots": 20,
+              "colorNoise": false,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            },
+            {
+              "noiseType": "sparkle",
+              "weight": 0.4,
+              "noiseLevel": 1,
+              "noiseScale": 10,
+              "spots": 15,
+              "colorNoise": true,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            }
+          ]
+        },
+        {
+          "name": "Цветной белый шум + Градиент",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ff0000",
+          "copies": 5,
+          "layers": [
+            {
+              "noiseType": "white",
+              "weight": 0.7,
+              "noiseLevel": 1,
+              "spots": 0,
+              "colorNoise": true,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            },
+            {
+              "noiseType": "gradient",
+              "weight": 0.3,
+              "noiseLevel": 1,
+              "noiseScale": 5,
+              "spots": 0,
+              "colorNoise": true,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            }
+          ]
+        },
+        {
+          "name": "Многослойный хаос",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#00ffff",
+          "copies": 5,
+          "layers": [
+            {
+              "noiseType": "saltPepper",
+              "weight": 0.4,
+              "noiseLevel": 1,
+              "spots": 20,
+              "colorNoise": false,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            },
+            {
+              "noiseType": "white",
+              "weight": 0.3,
+              "noiseLevel": 1,
+              "spots": 0,
+              "colorNoise": true,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            },
+            {
+              "noiseType": "sparkle",
+              "weight": 0.2,
+              "noiseLevel": 1,
+              "noiseScale": 8,
+              "spots": 10,
+              "colorNoise": true,
+              "alphaLevel": 1,
+              "smoothType": "none",
+              "smoothValue": 0
+            },
+            {
+              "noiseType": "gaussian",
+              "weight": 0.1,
+              "noiseLevel": 1,
+              "noiseScale": 10,
+              "spots": 0,
+              "colorNoise": true,
+              "alphaLevel": 0.9,
+              "smoothType": "none",
+              "smoothValue": 0
+            }
+          ]
+        },
+        {
+          "name": "Хаотичный шторм",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ff0000",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "impulse",
+              "weight": 0.9,
+              "noiseLevel": 1.0,
+              "noiseScale": 5,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "turbulent",
+              "weight": 0.7,
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "smoothType": "gaussian",
+              "smoothValue": 0.5,
+              "spots": 15,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Горный хаос",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#00ff00",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "ridgedMultifractal",
+              "weight": 1.0,
+              "noiseLevel": 1.0,
+              "noiseScale": 8,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 25,
+              "colorNoise": false,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "diamondSquare",
+              "weight": 0.8,
+              "noiseLevel": 0.9,
+              "noiseScale": 15,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": false,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Полосатый вихрь",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#0000ff",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "stripe",
+              "weight": 0.9,
+              "noiseLevel": 1.0,
+              "noiseScale": 10,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "multilayerPerlin",
+              "weight": 0.7,
+              "noiseLevel": 0.9,
+              "noiseScale": 12,
+              "smoothType": "gaussian",
+              "smoothValue": 0.3,
+              "spots": 15,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Соляной взрыв",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ffffff",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "saltPepper",
+              "weight": 1.0,
+              "noiseLevel": 1.0,
+              "noiseScale": 5,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 30,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "turbulent",
+              "weight": 0.8,
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Фрактальная буря",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ff00ff",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "fractal",
+              "weight": 0.9,
+              "noiseLevel": 1.0,
+              "noiseScale": 8,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 25,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "ridgedMultifractal",
+              "weight": 0.8,
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "smoothType": "gaussian",
+              "smoothValue": 0.5,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Клеточная аномалия",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#00ffff",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "cellular",
+              "weight": 1.0,
+              "noiseLevel": 1.0,
+              "noiseScale": 10,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 25,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "impulse",
+              "weight": 0.7,
+              "noiseLevel": 0.9,
+              "noiseScale": 5,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Вороной разлом",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ffff00",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "voronoi",
+              "weight": 0.9,
+              "noiseLevel": 1.0,
+              "noiseScale": 12,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": false,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "diamondSquare",
+              "weight": 0.8,
+              "noiseLevel": 0.9,
+              "noiseScale": 15,
+              "smoothType": "gaussian",
+              "smoothValue": 0.3,
+              "spots": 15,
+              "colorNoise": false,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Белый ураган",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ffffff",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "white",
+              "weight": 1.0,
+              "noiseLevel": 1.0,
+              "noiseScale": 5,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 30,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "turbulent",
+              "weight": 0.8,
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Искры в пустыне",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#ffaa00",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "sparkle",
+              "weight": 0.9,
+              "noiseLevel": 1.0,
+              "noiseScale": 8,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 25,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "multilayerPerlin",
+              "weight": 0.7,
+              "noiseLevel": 0.9,
+              "noiseScale": 15,
+              "smoothType": "gaussian",
+              "smoothValue": 0.5,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Гауссов разрыв",
+          "width": 512,
+          "height": 1024,
+          "colorPalette": "#aa00ff",
+          "copies": 5,
+          "layers": [
+            {
+              "id": 1,
+              "noiseType": "gaussian",
+              "weight": 1.0,
+              "noiseLevel": 1.0,
+              "noiseScale": 10,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 25,
+              "colorNoise": true,
+              "alphaLevel": 1.0
+            },
+            {
+              "id": 2,
+              "noiseType": "ridgedMultifractal",
+              "weight": 0.8,
+              "noiseLevel": 0.9,
+              "noiseScale": 8,
+              "smoothType": "none",
+              "smoothValue": 0,
+              "spots": 20,
+              "colorNoise": true,
+              "alphaLevel": 0.9
+            }
+          ]
+        },
+        {
+          "name": "Хаотичный ландшафт",
+          "layers": [
+            {
+              "noiseType": "midpointDisplacement",
+              "noiseLevel": 0.9,
+              "noiseScale": 15,
+              "weight": 0.8,
+              "alphaLevel": 1.0,
+              "colorNoise": false,
+              "spots": 30
+            },
+            {
+              "noiseType": "voronoiRidged",
+              "noiseLevel": 0.8,
+              "noiseScale": 10,
+              "weight": 0.7,
+              "alphaLevel": 0.9,
+              "colorNoise": true,
+              "spots": 20
+            },
+            {
+              "noiseType": "impulse",
+              "noiseLevel": 1.0,
+              "noiseScale": 5,
+              "weight": 0.6,
+              "alphaLevel": 0.8,
+              "colorNoise": true,
+              "spots": 40
+            }
+          ],
+          "smoothValue": 0
+        },
+        {
+          "name": "Турбулентная атмосфера",
+          "layers": [
+            {
+              "noiseType": "cloud",
+              "noiseLevel": 0.8,
+              "noiseScale": 20,
+              "weight": 0.7,
+              "alphaLevel": 0.9,
+              "colorNoise": true,
+              "spots": 25
+            },
+            {
+              "noiseType": "turbulent",
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "weight": 0.8,
+              "alphaLevel": 1.0,
+              "colorNoise": true,
+              "spots": 30
+            },
+            {
+              "noiseType": "wavelet",
+              "noiseLevel": 0.7,
+              "noiseScale": 5,
+              "weight": 0.6,
+              "alphaLevel": 0.8,
+              "colorNoise": true,
+              "spots": 35
+            }
+          ],
+          "smoothValue": 0.3
+        },
+        {
+          "name": "Органический хаос",
+          "layers": [
+            {
+              "noiseType": "organic",
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "weight": 0.8,
+              "alphaLevel": 1.0,
+              "colorNoise": true,
+              "spots": 30
+            },
+            {
+              "noiseType": "flow",
+              "noiseLevel": 0.8,
+              "noiseScale": 15,
+              "weight": 0.7,
+              "alphaLevel": 0.9,
+              "colorNoise": true,
+              "spots": 25
+            },
+            {
+              "noiseType": "saltPepper",
+              "noiseLevel": 1.0,
+              "noiseScale": 5,
+              "weight": 0.6,
+              "alphaLevel": 0.8,
+              "colorNoise": true,
+              "spots": 40
+            }
+          ],
+          "smoothValue": 0
+        },
+        {
+          "name": "Огненная буря",
+          "layers": [
+            {
+              "noiseType": "lava",
+              "noiseLevel": 0.9,
+              "noiseScale": 10,
+              "weight": 0.8,
+              "alphaLevel": 1.0,
+              "colorNoise": true,
+              "spots": 30
+            },
+            {
+              "noiseType": "ridgedMultifractal",
+              "noiseLevel": 0.8,
+              "noiseScale": 15,
+              "weight": 0.7,
+              "alphaLevel": 0.9,
+              "colorNoise": true,
+              "spots": 25
+            },
+            {
+              "noiseType": "sparkle",
+              "noiseLevel": 0.7,
+              "noiseScale": 5,
+              "weight": 0.6,
+              "alphaLevel": 0.8,
+              "colorNoise": true,
+              "spots": 35
+            }
+          ],
+          "smoothValue": 0.2
+        },
+        {
+          "name": "Текстильный ландшафт",
+          "layers": [
+            {
+              "noiseType": "fabric",
+              "noiseLevel": 0.8,
+              "noiseScale": 10,
+              "weight": 0.7,
+              "alphaLevel": 0.9,
+              "colorNoise": true,
+              "spots": 25
+            },
+            {
+              "noiseType": "erosion",
+              "noiseLevel": 0.9,
+              "noiseScale": 15,
+              "weight": 0.8,
+              "alphaLevel": 1.0,
+              "colorNoise": true,
+              "spots": 30
+            },
+            {
+              "noiseType": "stripe",
+              "noiseLevel": 0.7,
+              "noiseScale": 5,
+              "weight": 0.6,
+              "alphaLevel": 0.8,
+              "colorNoise": true,
+              "spots": 40
+            }
+          ],
+          "smoothValue": 0.3
+        }
+
+
+      ];
+      let presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      defaultPresets.forEach(preset => {
+        presets[preset.name] = preset;
+      });
+      localStorage.setItem('noisePresets', JSON.stringify(presets));
+      updatePresetList();
+    }
+    // Вызови initializePresets() при загрузке страницы
+    initializePresets();
 
   </script>
 </body>
