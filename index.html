@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,6 +14,7 @@
       --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
       --border-radius: 12px;
     }
+
     body {
       background: var(--bg-color);
       color: var(--text-color);
@@ -26,6 +28,7 @@
       overflow-y: auto;
       box-sizing: border-box;
     }
+
     .container {
       max-width: 1200px;
       width: 100%;
@@ -35,12 +38,14 @@
       max-height: 100vh;
       box-sizing: border-box;
     }
+
     .canvas-container {
       position: relative;
       width: 100%;
       display: flex;
       justify-content: center;
     }
+
     canvas {
       border: 1px solid #555;
       border-radius: var(--border-radius);
@@ -50,6 +55,7 @@
       background: #000;
       box-shadow: var(--shadow);
     }
+
     .controls {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -59,18 +65,24 @@
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
     }
+
     .control-group {
       display: flex;
       flex-direction: column;
       gap: 4px;
       position: relative;
     }
+
     label {
       font-size: 14px;
       font-weight: 500;
       opacity: 0.9;
     }
-    input[type="number"], select, input[type="checkbox"], input[type="color"] {
+
+    input[type="number"],
+    select,
+    input[type="checkbox"],
+    input[type="color"] {
       background: #666;
       border: none;
       border-radius: 8px;
@@ -81,9 +93,13 @@
       width: 100%;
       box-sizing: border-box;
     }
-    input[type="number"]:hover, select:hover, input[type="color"]:hover {
+
+    input[type="number"]:hover,
+    select:hover,
+    input[type="color"]:hover {
       background: #4a545c;
     }
+
     button {
       background: var(--accent-color);
       border: none;
@@ -96,13 +112,16 @@
       transition: transform 0.1s, background 0.2s;
       box-shadow: var(--shadow);
     }
+
     button:hover {
       background: #082f51;
       transform: scale(1.04);
     }
+
     button:active {
       transform: scale(0.95);
     }
+
     .actions {
       display: flex;
       gap: 12px;
@@ -113,12 +132,14 @@
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
     }
+
     .layers {
       padding: 12px;
       background: var(--card-bg);
       border-radius: var(--border-radius);
       box-shadow: var(--shadow);
     }
+
     .layer-item {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -126,7 +147,10 @@
       padding: 8px;
       border-bottom: 1px solid #555;
     }
-    #progress, #metrics, #recommendations {
+
+    #progress,
+    #metrics,
+    #recommendations {
       font-size: 14px;
       padding: 12px;
       background: var(--card-bg);
@@ -134,14 +158,18 @@
       text-align: center;
       box-shadow: var(--shadow);
     }
+
     #progress {
       display: none;
     }
-    #metrics, #recommendations {
+
+    #metrics,
+    #recommendations {
       display: block;
       font-size: 13px;
       opacity: 0.9;
     }
+
     .tooltip {
       visibility: hidden;
       background: #000;
@@ -158,22 +186,136 @@
       opacity: 0;
       transition: opacity 0.2s;
     }
+
     .control-group:hover .tooltip {
       visibility: visible;
       opacity: 1;
     }
+
     @media (max-width: 600px) {
-      .controls, .layer-item {
+
+      .controls,
+      .layer-item {
         grid-template-columns: 1fr;
       }
+
       canvas {
         max-height: calc(100vh - 400px);
       }
     }
+
+    /* Стили для модального окна */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-content {
+      background-color: #2e2e2e;
+      margin: 5% auto;
+      padding: 20px;
+      border-radius: 12px;
+      width: 80%;
+      max-width: 600px;
+      color: white;
+      font-family: sans-serif;
+      box-shadow: 0 0 15px black;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .close {
+      float: right;
+      font-size: 28px;
+      cursor: pointer;
+    }
+
+    .save-section,
+    .load-section {
+      margin-top: 20px;
+    }
+
+    .preset-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .preset-card {
+      background: #444;
+      border-radius: 8px;
+      padding: 10px;
+      width: 150px;
+      text-align: center;
+      box-shadow: 0 0 5px black;
+    }
+
+    .preset-card button {
+      margin-top: 5px;
+      width: 100%;
+      padding: 4px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .preset-card button.load {
+      background-color: #2ecc71;
+      color: white;
+    }
+
+    .preset-card button.delete {
+      background-color: #e74c3c;
+      color: white;
+
+    }
+
+    #presetNameInput {
+      padding: 10px;
+      border-radius: 5px;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
+
 <body>
+  <!-- Модальное окно -->
+  <div id="presetModal" class="modal">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2>🎛 Меню пресетов</h2>
+
+      <div class="save-section">
+        <h3>💾 Сохранить новый пресет</h3>
+        <input type="text" id="presetNameInput" placeholder="Имя пресета" />
+        <button id="savePresetButton">Сохранить</button>
+      </div>
+
+      <div class="load-section">
+        <h3>📚 Загрузить/Удалить пресет</h3>
+        <div id="presetList" class="preset-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
+    <button id="openPresetModalButton">Меню пресетов</button>
+
     <div class="controls">
       <div class="control-group">
         <label>Ширина</label>
@@ -191,9 +333,9 @@
         <span class="tooltip">Основной цвет для цветного шума</span>
       </div>
     </div>
-    
+
     <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -, Entropy: -</div>
-    
+
     <div class="layers">
       <button onclick="addLayer()">Добавить слой</button>
       <div id="layerList"></div>
@@ -212,8 +354,6 @@
       <button onclick="download()">💾 Скачать</button>
       <button onclick="saveCopies()">📁 Скачать <span id="copiesDisplay">5</span> копий:</button>
       <input type="number" id="copies" value="5" min="1" style="width: 60px;" />
-      <button onclick="saveSettings()">💾 Сохранить пресет</button>
-      <button onclick="loadPresets()">📂 Загрузить пресет</button>
       <button onclick="undo()">↩️ Отменить</button>
       <button onclick="redo()">↪️ Вернуть</button>
     </div>
@@ -1279,14 +1419,14 @@
 
         for (let layer of layers) {
           const chunkImageData = await new Promise((resolve, reject) => {
-            noiseWorker.onmessage = function(e) {
+            noiseWorker.onmessage = function (e) {
               if (e.data.error) {
                 reject(new Error(e.data.error));
               } else {
                 resolve(e.data.imgData);
               }
             };
-            noiseWorker.onerror = function(e) {
+            noiseWorker.onerror = function (e) {
               reject(new Error('Ошибка в Web Worker: ' + e.message));
             };
             noiseWorker.postMessage({
@@ -1434,6 +1574,116 @@
     window.addEventListener('resize', generateNoise);
     updateLayerUI();
     generateNoise();
+
+
+    function openPresetModal() {
+      document.getElementById("presetModal").style.display = "block";
+      updatePresetList();
+    }
+
+    function closePresetModal() {
+      document.getElementById("presetModal").style.display = "none";
+    }
+
+    document.getElementById("savePresetButton").addEventListener("click", function () {
+      const nameInput = document.getElementById("presetNameInput");
+      const presetName = nameInput.value.trim();
+      if (!presetName) return;
+
+      const settings = {
+        width: document.getElementById('width').value,
+        height: document.getElementById('height').value,
+        layers,
+        colorPalette: document.getElementById('colorPalette').value,
+        copies: copiesInput.value
+      };
+
+      let presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      presets[presetName] = settings;
+      localStorage.setItem('noisePresets', JSON.stringify(presets));
+
+      nameInput.value = '';
+      updatePresetList();
+    });
+
+    function loadPreset(presetName) {
+      const presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      const settings = presets[presetName];
+      if (!settings) return;
+
+      document.getElementById('width').value = settings.width || 512;
+      document.getElementById('height').value = settings.height || 1024;
+      document.getElementById('colorPalette').value = settings.colorPalette || '#ffffff';
+      layers = settings.layers || getDefaultLayers();
+      copiesInput.value = settings.copies || 5;
+      copiesDisplay.textContent = settings.copies || 5;
+
+      updateLayerUI();
+      generateNoise();
+      closePresetModal();
+    }
+
+    function deletePreset(presetName) {
+      if (!confirm(`Удалить пресет "${presetName}"? Это действие необратимо.`)) return;
+      let presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      delete presets[presetName];
+      localStorage.setItem('noisePresets', JSON.stringify(presets));
+      updatePresetList();
+    }
+
+    function updatePresetList() {
+      const listContainer = document.getElementById("presetList");
+      listContainer.innerHTML = "";
+
+      const presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
+      const sortedNames = Object.keys(presets).sort();
+
+      sortedNames.forEach(name => {
+        const card = document.createElement("div");
+        card.className = "preset-card";
+
+        const title = document.createElement("div");
+        title.textContent = name;
+
+        const loadBtn = document.createElement("button");
+        loadBtn.textContent = "Загрузить";
+        loadBtn.className = "load";
+        loadBtn.onclick = () => loadPreset(name);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "Удалить";
+        deleteBtn.className = "delete";
+        deleteBtn.onclick = () => deletePreset(name);
+
+        card.appendChild(title);
+        card.appendChild(loadBtn);
+        card.appendChild(deleteBtn);
+        listContainer.appendChild(card);
+      });
+    }
+
+    document.getElementById("closeModal").addEventListener("click", closePresetModal);
+    document.getElementById("openPresetModalButton").addEventListener("click", openPresetModal);
+    window.onclick = function (event) {
+      if (event.target == document.getElementById("presetModal")) closePresetModal();
+    };
+
+    function getDefaultLayers() {
+      return [{
+        id: Date.now(),
+        noiseType: 'random',
+        weight: 0.5,
+        noiseLevel: 0.7,
+        noiseScale: 10,
+        smoothType: 'gaussian',
+        smoothValue: 0,
+        spots: 10,
+        colorNoise: false,
+        alphaLevel: 1
+      }];
+    }
+
   </script>
 </body>
+
 </html>
