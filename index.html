@@ -240,13 +240,39 @@
       cursor: pointer;
     }
 
-    .save-section,
-    .load-section {}
-
     .preset-list {
+      padding: 20px;
       display: flex;
       flex-wrap: wrap;
       gap: 2px;
+      max-height: 400px;
+      overflow-y: auto;
+      padding-right: 10px;
+    }
+
+    /* Стилизация скроллбара */
+    #presetList::-webkit-scrollbar {
+      width: 8px;
+      /* Ширина скроллбара */
+    }
+
+    #presetList::-webkit-scrollbar-thumb {
+      background-color: #1465ac;
+      /* Цвет бегунка */
+      border-radius: 2px;
+      /* Закругление углов */
+      border: 2px solid #fff;
+    }
+
+    #presetList::-webkit-scrollbar-track {
+      background-color: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    /* Для Firefox */
+    #presetList {
+      scrollbar-width: thin;
+      scrollbar-color: #1465ac #0e0e0e;
     }
 
     .preset-card {
@@ -267,12 +293,12 @@
     }
 
     .preset-card button.load {
-      background-color: #2ecc71;
+      background-color: #39ba7b;
       color: white;
     }
 
     .preset-card button.delete {
-      background-color: #e74c3c;
+      background-color: #c34034;
       color: white;
 
     }
