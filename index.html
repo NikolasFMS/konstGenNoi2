@@ -131,7 +131,6 @@
       padding: 12px;
       background: var(--card-bg);
       border-radius: var(--border-radius);
-      width: 100%;
       text-align: center;
       box-shadow: var(--shadow);
     }
@@ -194,7 +193,6 @@
     </div>
     
     <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -, Entropy: -</div>
-    <div id="recommendations">Рекомендации: -</div>
     
     <div class="layers">
       <button onclick="addLayer()">Добавить слой</button>
@@ -206,6 +204,8 @@
     <div class="canvas-container">
       <canvas id="noiseCanvas"></canvas>
     </div>
+
+    <div id="recommendations">Рекомендации: -</div>
 
     <div class="actions">
       <button onclick="generateNoise()">🎲 Сгенерировать</button>
@@ -1062,11 +1062,6 @@
       }
       if (metrics.entropy < 6) {
         recs.push("Добавьте более сложные типы шума (например, Фрактал) для повышения уникальности или усильте влияние слоя.");
-      }
-      if (generationTime > 1000) {
-        recs.push("Время генерации превышает 1 с. Можете уменьшите размер изображения.");
-      } else if (generationTime > 500) {
-        recs.push("Для ускорения попробуйте снизить количество слоев или использовать менее ресурсоемкие фильтры.");
       }
       if (layers.length > 3) {
         recs.push("Много слоев может замедлить генерацию. Попробуйте объединить слои с низким весом.");
