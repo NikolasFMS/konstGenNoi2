@@ -337,7 +337,7 @@
       </div>
 
       <div class="load-section">
-        <h3>📚 Загрузить/Удалить пресет</h3>
+        <h3>📚 Загрузить/ 🗑️ Удалить пресет</h3>
         <button id="defaultPreset" onclick="initializePresets()">Вернуть базовые пресеты</button>
 
         <div id="presetList" class="preset-list"></div>
@@ -352,7 +352,7 @@
     <div id="metrics">SSIM: -, PSNR: -, RMSE: -, MAE: -, Entropy: -</div>
 
     <div class="layers">
-      <button onclick="addLayer()">Добавить слой</button>
+      <button onclick="addLayer()">➕ Добавить слой</button>
       <div id="layerList"></div>
     </div>
 
@@ -702,7 +702,7 @@
           </div>
           <div class="control-group">
             <label>Удалить слой</label>
-            <button onclick="removeLayer(${layer.id})">Удалить</button>
+            <button onclick="removeLayer(${layer.id})">🗑️ Удалить</button>
             <span class="tooltip">Удаляет слой</span>
           </div>
         `;
@@ -978,7 +978,7 @@
     }
 
     function deletePreset(presetName) {
-      if (!confirm(`Удалить пресет "${presetName}"? Это действие необратимо.`)) return;
+      if (!confirm(`🗑️ Удалить пресет "${presetName}"? Это действие необратимо.`)) return;
       let presets = JSON.parse(localStorage.getItem('noisePresets') || '{}');
       delete presets[presetName];
       localStorage.setItem('noisePresets', JSON.stringify(presets));
@@ -1006,7 +1006,7 @@
         loadBtn.onclick = () => loadPreset(name);
 
         const deleteBtn = document.createElement("button");
-        deleteBtn.textContent = "Удалить";
+        deleteBtn.textContent = "🗑️ Удалить";
         deleteBtn.className = "delete";
         deleteBtn.onclick = () => deletePreset(name);
 
@@ -1060,6 +1060,8 @@
       updatePresetList();
 
     }
+  
+  
   </script>
   <script src="initializePresets.js"></script>
 
