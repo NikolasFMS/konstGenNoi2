@@ -662,38 +662,33 @@ function brownNoise(width, height, scale, intensity, colorNoise) {
   const noise = new Uint8ClampedArray(width * height * (colorNoise ? 3 : 1));
   let lastValue = [0, 0, 0];
 
-  // Функция для генерации шума с учетом зависимости между пикселями
   function generateNoise() {
-    let value = (Math.random() - 0.5) * 2 / scale;
-    lastValue[0] += value;
-    lastValue[0] = Math.min(1, Math.max(-1, lastValue[0]));
+    let base = (Math.random() - 0.5) * (2 / (scale / 20));
+    lastValue[0] = Math.max(-1, Math.min(1, lastValue[0] + base));
 
-    // Если включен цветной шум
     if (colorNoise) {
-      lastValue[1] += (Math.random() - 0.5) * 2 / scale;
-      lastValue[1] = Math.min(1, Math.max(-1, lastValue[1]));
-
-      lastValue[2] += (Math.random() - 0.5) * 2 / scale;
-      lastValue[2] = Math.min(1, Math.max(-1, lastValue[2]));
+      for (let c = 1; c < 3; c++) {
+        let delta = (Math.random() - 0.5) * (2 / (scale / 20));
+        lastValue[c] = Math.max(-1, Math.min(1, lastValue[c] + delta));
+      }
     }
 
     return lastValue;
   }
 
-  // Генерация шума для каждого пикселя
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       let colorValues = generateNoise();
-
       for (let c = 0; c < (colorNoise ? 3 : 1); c++) {
-        // Преобразование значений в диапазон от 0 до 255
-        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.min(255, Math.max(0, ((colorValues[c] + 1) / 2) * intensity * 255));
+        const val = ((colorValues[c] + 1) / 2) * 255;
+        noise[(y * width + x) * (colorNoise ? 3 : 1) + c] = Math.max(0, Math.min(255, val * intensity));
       }
     }
   }
 
   return noise;
 }
+
 
 function blueNoise(width, height, scale, intensity, colorNoise) {
   // Определяем размеры базовой текстуры (64x64 для производительности)
